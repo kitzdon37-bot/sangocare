@@ -14,6 +14,19 @@ const SPECIALTIES = [
   { label: "Agent (ASC)", icon: "person_pin_circle", color: "#059669" },
 ];
 
+const QUICK_ACCESS = [
+  { label: "Médecin GPS", icon: "near_me", color: "#0E7C7B", screen: "gps" as const },
+  { label: "Téléconsultation", icon: "videocam", color: "#1D69E5", screen: "teleconsult" as const },
+  { label: "Pharmacie garde", icon: "local_pharmacy", color: "#7C3AED", screen: "pharmacie" as const },
+  { label: "Urgences SAMU", icon: "emergency", color: "#DC2626", screen: "urgences" as const },
+  { label: "Mon carnet", icon: "menu_book", color: "#D97706", screen: "carnet" as const },
+  { label: "Mes RDV", icon: "event_note", color: "#0E7C7B", screen: "rdv" as const },
+  { label: "Ma famille", icon: "family_restroom", color: "#DB2777", screen: "famille" as const },
+  { label: "Don de sang", icon: "bloodtype", color: "#DC2626", screen: "don" as const },
+  { label: "Mobile Money", icon: "account_balance_wallet", color: "#059669", screen: null, toast: "Mobile Money — bientôt disponible" },
+  { label: "Paramètres", icon: "settings", color: "#6B7B80", screen: null, toast: "Paramètres — bientôt disponible" },
+] as const;
+
 const STEPS = [
   { icon: "search", title: "Cherchez", desc: "Médecin, spécialité ou symptôme" },
   { icon: "event_available", title: "Choisissez", desc: "Un créneau disponible en ligne ou SMS" },
@@ -36,11 +49,40 @@ const DAYS = [
 ];
 const SLOTS = ["08:00", "08:30", "09:00", "11:00", "14:30", "16:00"];
 
+const PHARMACIES = [
+  { name: "Pharmacie Centrale", address: "Av. Boganda, Bangui", phone: "+236 75 10 10 10", status: "Ouverte jusqu'à 22h", open: true },
+  { name: "Pharmacie de la Paix", address: "Km5, Bangui", phone: "+236 75 20 20 20", status: "Ouverte jusqu'à 23h", open: true },
+  { name: "Pharmacie Sainte-Marie", address: "Bimbo", phone: "+236 75 30 30 30", status: "Fermée — ouvre à 8h", open: false },
+  { name: "Pharmacie Centrale II", address: "PK12", phone: "+236 75 40 40 40", status: "Ouverte 24h/24", open: true },
+];
+
+const BLOOD_COMPAT = [
+  { group: "O-", canGiveTo: "Tous groupes" },
+  { group: "O+", canGiveTo: "O+, A+, B+, AB+" },
+  { group: "A-", canGiveTo: "A-, A+, AB-, AB+" },
+  { group: "A+", canGiveTo: "A+, AB+" },
+  { group: "B-", canGiveTo: "B-, B+, AB-, AB+" },
+  { group: "B+", canGiveTo: "B+, AB+" },
+  { group: "AB-", canGiveTo: "AB-, AB+" },
+  { group: "AB+", canGiveTo: "AB+" },
+];
+
 type PayMethod = "orange" | "moov" | "place";
 type BookingStep = "doctor" | "payment" | "done";
+type SiteScreen =
+  | "landing"
+  | "search"
+  | "gps"
+  | "urgences"
+  | "pharmacie"
+  | "carnet"
+  | "rdv"
+  | "teleconsult"
+  | "famille"
+  | "don";
 
 export default function SitePage() {
-  const { doctors, modal, setModal, selectedDoctorId, setSelectedDoctor, setSelectedSpecialty, addAppointment, userName, showToast } = useAppStore();
+  const { doctors, appointments, modal, setModal, selectedDoctorId, setSelectedDoctor, setSelectedSpecialty, addAppointment, userName, showToast } = useAppStore();
 
   const [hovCard, setHovCard] = useState<string | null>(null);
   const [hovSpec, setHovSpec] = useState<string | null>(null);
@@ -50,7 +92,7 @@ export default function SitePage() {
   const [isMobileView, setIsMobileView] = useState(false);
   const [searchVal, setSearchVal] = useState("");
   const [locationVal, setLocationVal] = useState("");
-  const [siteScreen, setSiteScreen] = useState<"landing" | "search">("landing");
+  const [siteScreen, setSiteScreen] = useState<SiteScreen>("landing");
   const [filterDispo, setFilterDispo] = useState("semaine");
   const [filterType, setFilterType] = useState("presentiel");
 
@@ -59,6 +101,9 @@ export default function SitePage() {
   const [payMethod, setPayMethod] = useState<PayMethod>("orange");
   const [selectedDay, setSelectedDay] = useState(0);
   const [specialtyFilter, setSpecialtyFilter] = useState<string | null>(null);
+
+  // RDV tabs
+  const [rdvTab, setRdvTab] = useState<"avenir" | "passes">("avenir");
 
   useEffect(() => {
     const h = () => setIsMobileView(window.innerWidth < 768);
@@ -94,6 +139,14 @@ export default function SitePage() {
     setBookingStep("done");
   };
 
+  const openBooking = (docId: string) => {
+    setSelectedDoctor(docId);
+    setBookingStep("doctor");
+    setSelectedSlot(null);
+    setSelectedDay(0);
+    setModal("bookingModal");
+  };
+
   const inp: React.CSSProperties = {
     border: "1.5px solid #E2EAE8", borderRadius: 10, padding: "11px 14px", fontSize: 14,
     outline: "none", background: "#fff", color: "#0F1F24", fontFamily: "inherit", boxSizing: "border-box",
@@ -103,7 +156,6 @@ export default function SitePage() {
   const renderBookingModal = () => {
     if (modal !== "bookingModal" || !selectedDoc) return null;
 
-    // Dark header shared by doctor + payment steps
     const DarkHeader = ({ onClose, onBack }: { onClose?: () => void; onBack?: () => void }) => (
       <div style={{ background: "#0C1A1E", padding: "20px", borderRadius: "20px 20px 0 0", position: "sticky", top: 0 }}>
         {onClose && (
@@ -127,14 +179,12 @@ export default function SitePage() {
       </div>
     );
 
-    // Step: doctor (slot picker)
     if (bookingStep === "doctor") {
       return (
         <div onClick={() => setModal(null)} style={{ position: "fixed", inset: 0, background: "rgba(12,26,30,0.75)", zIndex: 500, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
           <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 20, width: "100%", maxWidth: 480, maxHeight: "90vh", overflow: "auto", boxShadow: "0 20px 60px rgba(0,0,0,0.4)" }}>
             <DarkHeader onClose={() => setModal(null)} />
             <div style={{ padding: "18px 20px", display: "flex", flexDirection: "column", gap: 14 }}>
-              {/* Day picker */}
               <div>
                 <label style={{ fontSize: 12, fontWeight: 700, color: "#46565B", display: "block", marginBottom: 8 }}>Choisir un jour</label>
                 <div style={{ display: "flex", gap: 6 }}>
@@ -147,7 +197,6 @@ export default function SitePage() {
                   ))}
                 </div>
               </div>
-              {/* Slots */}
               <div>
                 <label style={{ fontSize: 12, fontWeight: 700, color: "#46565B", display: "block", marginBottom: 8 }}>Créneau disponible</label>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
@@ -159,7 +208,6 @@ export default function SitePage() {
                   ))}
                 </div>
               </div>
-              {/* Motif */}
               <div>
                 <label style={{ fontSize: 12, fontWeight: 700, color: "#46565B", display: "block", marginBottom: 6 }}>Motif (optionnel)</label>
                 <input value={motif} onChange={e => setMotif(e.target.value)} placeholder="Ex : fièvre, contrôle annuel..."
@@ -178,14 +226,12 @@ export default function SitePage() {
       );
     }
 
-    // Step: payment
     if (bookingStep === "payment") {
       return (
         <div onClick={() => setModal(null)} style={{ position: "fixed", inset: 0, background: "rgba(12,26,30,0.75)", zIndex: 500, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
           <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 20, width: "100%", maxWidth: 480, maxHeight: "90vh", overflow: "auto", boxShadow: "0 20px 60px rgba(0,0,0,0.4)" }}>
             <DarkHeader onBack={() => setBookingStep("doctor")} />
             <div style={{ padding: "18px 20px", display: "flex", flexDirection: "column", gap: 14 }}>
-              {/* Summary card */}
               <div style={{ background: "#F6F8F7", borderRadius: 14, padding: "12px" }}>
                 <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 10 }}>
                   <div style={{ width: 40, height: 40, borderRadius: "50%", background: "#0E7C7B", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 800, fontSize: 15 }}>{selectedDoc.initials}</div>
@@ -206,7 +252,6 @@ export default function SitePage() {
                 ))}
               </div>
 
-              {/* Payment methods */}
               <div>
                 <div style={{ fontSize: 13, fontWeight: 700, color: "#0F1F24", marginBottom: 8 }}>Mode de paiement</div>
                 {([
@@ -233,7 +278,6 @@ export default function SitePage() {
       );
     }
 
-    // Step: done
     if (bookingStep === "done") {
       return (
         <div style={{ position: "fixed", inset: 0, background: "rgba(12,26,30,0.75)", zIndex: 500, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
@@ -272,7 +316,493 @@ export default function SitePage() {
     return null;
   };
 
-  // ── Search results view ──────────────────────────────────────────────────
+  // ── Shared screen layout wrapper ────────────────────────────────────────────
+  const renderScreenLayout = (title: string, children: React.ReactNode) => (
+    <div style={{ background: "#F4F7F6", minHeight: "calc(100vh - 52px)" }}>
+      <div style={{ maxWidth: 960, margin: "0 auto", padding: "24px 20px" }}>
+        <button
+          onClick={() => setSiteScreen("landing")}
+          style={{ background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 6, color: "#0E7C7B", fontWeight: 700, fontSize: 14, fontFamily: "inherit", marginBottom: 20 }}
+        >
+          <span className="material-symbols-rounded" style={{ fontSize: 20 }}>arrow_back</span>
+          Accueil
+        </button>
+        <h2 style={{ fontWeight: 800, fontSize: 24, color: "#0F1F24", margin: "0 0 24px" }}>{title}</h2>
+        {children}
+      </div>
+      {renderBookingModal()}
+    </div>
+  );
+
+  // ── Doctor card (shared between GPS and Téléconsult) ───────────────────────
+  const renderDoctorCard = (d: typeof doctors[number], extra?: React.ReactNode) => (
+    <div key={d.id}
+      onMouseEnter={() => setHovCard(d.id)} onMouseLeave={() => setHovCard(null)}
+      style={{ background: "#fff", borderRadius: 16, padding: "16px 20px", boxShadow: hovCard === d.id ? "0 8px 24px rgba(0,0,0,0.1)" : "0 2px 8px rgba(0,0,0,0.06)", border: "1px solid #E2EAE8", display: "flex", gap: 14, alignItems: "center", transition: "all 0.15s" }}>
+      <div style={{ width: 52, height: 52, borderRadius: "50%", background: "#0E7C7B", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 800, fontSize: 18, flexShrink: 0 }}>{d.initials}</div>
+      <div style={{ flex: 1 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 5, flexWrap: "wrap" }}>
+          <span style={{ fontWeight: 800, fontSize: 15, color: "#0F1F24" }}>{d.name}</span>
+          {d.verified && <span className="material-symbols-rounded" style={{ fontSize: 15, color: "#0E7C7B" }}>verified</span>}
+          {d.teleconsult && <span style={{ background: "#EEF4FF", color: "#2563EB", fontSize: 10, fontWeight: 700, borderRadius: 5, padding: "2px 7px" }}>Téléconsult</span>}
+        </div>
+        <div style={{ fontSize: 12, color: "#6B7B80", marginTop: 2 }}>{d.specialty} · {d.location}</div>
+        <div style={{ display: "flex", gap: 10, marginTop: 4, flexWrap: "wrap" }}>
+          <span style={{ fontSize: 12, color: "#D97706" }}>★ {d.rating} <span style={{ color: "#8AA4A8" }}>({d.reviews})</span></span>
+          <span style={{ fontSize: 12, color: "#8AA4A8" }}>{d.distance}</span>
+          <span style={{ fontSize: 12, fontWeight: 700, color: d.price.startsWith("Gratuit") ? "#059669" : "#0F1F24" }}>{d.price}</span>
+        </div>
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8, flexShrink: 0 }}>
+        <div style={{ fontSize: 12, color: "#6B7B80", textAlign: "right" }}>
+          Prochain créneau<br />
+          <strong style={{ color: "#0E7C7B" }}>{d.dispo || "Auj."}</strong>
+        </div>
+        {extra}
+        <button
+          onClick={() => openBooking(d.id)}
+          onMouseEnter={() => setHovBtn(d.id)} onMouseLeave={() => setHovBtn(null)}
+          style={{ background: hovBtn === d.id ? "#0A6060" : "#0E7C7B", border: "none", borderRadius: 10, padding: "9px 18px", color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" }}>
+          Prendre RDV
+        </button>
+      </div>
+    </div>
+  );
+
+  // ── Screen: GPS ─────────────────────────────────────────────────────────────
+  if (siteScreen === "gps") {
+    const parseKm = (dist: string) => {
+      const m = dist.match(/([\d,\.]+)\s*km/i);
+      if (!m) return 999;
+      return parseFloat(m[1].replace(",", "."));
+    };
+    const sorted = [...doctors].sort((a, b) => parseKm(a.distance) - parseKm(b.distance));
+
+    return renderScreenLayout("Médecin GPS", (
+      <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+        {/* GPS badge */}
+        <div style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "#E5F2F1", border: "1px solid #0E7C7B", borderRadius: 20, padding: "8px 16px", alignSelf: "flex-start" }}>
+          <span className="material-symbols-rounded" style={{ fontSize: 16, color: "#0E7C7B" }}>location_on</span>
+          <span style={{ color: "#0E7C7B", fontSize: 13, fontWeight: 700 }}>GPS activé · Bangui, Centrafrique</span>
+        </div>
+
+        {/* Map placeholder */}
+        <div style={{ background: "#0C1A1E", borderRadius: 16, height: 280, position: "relative", overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div style={{ color: "#8AA4A8", fontSize: 14, fontWeight: 600, textAlign: "center" }}>
+            <span className="material-symbols-rounded" style={{ fontSize: 40, color: "#0E7C7B", display: "block", marginBottom: 8 }}>map</span>
+            Carte interactive · Bangui
+          </div>
+          {/* Dot markers */}
+          {[
+            { top: "35%", left: "48%", color: "#0E7C7B" },
+            { top: "52%", left: "38%", color: "#1D69E5" },
+            { top: "44%", left: "60%", color: "#D97706" },
+            { top: "62%", left: "52%", color: "#DC2626" },
+            { top: "30%", left: "65%", color: "#059669" },
+          ].map((dot, i) => (
+            <div key={i} style={{ position: "absolute", top: dot.top, left: dot.left, width: 14, height: 14, borderRadius: "50%", background: dot.color, border: "2px solid #fff", boxShadow: "0 2px 6px rgba(0,0,0,0.4)" }} />
+          ))}
+        </div>
+
+        {/* Doctors sorted by proximity */}
+        <div>
+          <div style={{ fontWeight: 800, fontSize: 18, color: "#0F1F24", marginBottom: 14 }}>Praticiens à proximité</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            {sorted.map(d => renderDoctorCard(d))}
+          </div>
+        </div>
+      </div>
+    ));
+  }
+
+  // ── Screen: Urgences ────────────────────────────────────────────────────────
+  if (siteScreen === "urgences") {
+    const callCards = [
+      { icon: "emergency", color: "#DC2626", bg: "#FEF2F2", name: "SAMU", phone: "117", address: "Urgences nationales, Bangui" },
+      { icon: "local_hospital", color: "#1D69E5", bg: "#EEF4FF", name: "Hôpital Communautaire", phone: "+236 75 00 02 02", address: "Avenue des Martyrs, Bangui" },
+      { icon: "local_hospital", color: "#7C3AED", bg: "#F5F3FF", name: "CHU de Bangui", phone: "+236 75 00 04 04", address: "Boulevard de l'Indépendance, Bangui" },
+    ];
+
+    const urgenceSteps = [
+      { num: "1", title: "Appelez le 117", desc: "Le SAMU répond 24h/24, 7j/7" },
+      { num: "2", title: "Restez calme", desc: "Parlez clairement, donnez votre position" },
+      { num: "3", title: "Ne déplacez pas", desc: "Ne déplacez pas le blessé sauf danger immédiat" },
+      { num: "4", title: "Attendez les secours", desc: "Restez en ligne jusqu'à l'arrivée" },
+    ];
+
+    return renderScreenLayout("Urgences SAMU", (
+      <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+        {/* Red warning banner */}
+        <div style={{ background: "#DC2626", borderRadius: 14, padding: "16px 20px", display: "flex", alignItems: "center", gap: 12 }}>
+          <span className="material-symbols-rounded" style={{ fontSize: 28, color: "#fff" }}>emergency</span>
+          <span style={{ color: "#fff", fontWeight: 700, fontSize: 15 }}>Appelez le 117 en cas d'urgence vitale</span>
+        </div>
+
+        {/* Call cards */}
+        <div style={{ display: "grid", gridTemplateColumns: isMobileView ? "1fr" : "repeat(3, 1fr)", gap: 14 }}>
+          {callCards.map(c => (
+            <div key={c.name} style={{ background: "#fff", borderRadius: 16, padding: "20px", border: `1.5px solid ${c.color}30`, boxShadow: "0 2px 8px rgba(0,0,0,0.06)" }}>
+              <div style={{ width: 48, height: 48, borderRadius: "50%", background: c.bg, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 12 }}>
+                <span className="material-symbols-rounded" style={{ fontSize: 26, color: c.color }}>{c.icon}</span>
+              </div>
+              <div style={{ fontWeight: 800, fontSize: 15, color: "#0F1F24", marginBottom: 4 }}>{c.name}</div>
+              <div style={{ fontSize: 22, fontWeight: 800, color: c.color, marginBottom: 4 }}>{c.phone}</div>
+              <div style={{ fontSize: 12, color: "#6B7B80", marginBottom: 14 }}>{c.address}</div>
+              <a href={`tel:${c.phone.replace(/\s/g, "")}`}
+                style={{ display: "block", background: c.color, borderRadius: 10, padding: "10px", textAlign: "center", color: "#fff", fontWeight: 700, fontSize: 13, textDecoration: "none" }}>
+                Appeler
+              </a>
+            </div>
+          ))}
+        </div>
+
+        {/* Steps */}
+        <div>
+          <div style={{ fontWeight: 800, fontSize: 18, color: "#0F1F24", marginBottom: 14 }}>Que faire en urgence ?</div>
+          <div style={{ display: "grid", gridTemplateColumns: isMobileView ? "1fr 1fr" : "repeat(4, 1fr)", gap: 12 }}>
+            {urgenceSteps.map(s => (
+              <div key={s.num} style={{ background: "#fff", borderRadius: 14, padding: "16px", border: "1px solid #E2EAE8" }}>
+                <div style={{ width: 36, height: 36, borderRadius: "50%", background: "#FEF2F2", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 10 }}>
+                  <span style={{ fontWeight: 800, fontSize: 16, color: "#DC2626" }}>{s.num}</span>
+                </div>
+                <div style={{ fontWeight: 700, fontSize: 14, color: "#0F1F24", marginBottom: 4 }}>{s.title}</div>
+                <div style={{ fontSize: 12, color: "#6B7B80", lineHeight: 1.5 }}>{s.desc}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    ));
+  }
+
+  // ── Screen: Pharmacie ───────────────────────────────────────────────────────
+  if (siteScreen === "pharmacie") {
+    return renderScreenLayout("Pharmacies de garde", (
+      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+        {/* Header */}
+        <div style={{ display: "flex", alignItems: "center", gap: 10, background: "#fff", borderRadius: 14, padding: "14px 18px", border: "1px solid #E2EAE8" }}>
+          <span className="material-symbols-rounded" style={{ fontSize: 22, color: "#7C3AED" }}>schedule</span>
+          <span style={{ fontWeight: 700, fontSize: 15, color: "#0F1F24" }}>Pharmacies ouvertes ce soir</span>
+        </div>
+
+        {/* Pharmacy cards */}
+        {PHARMACIES.map(p => (
+          <div key={p.name} style={{ background: "#fff", borderRadius: 16, padding: "18px 20px", border: "1px solid #E2EAE8", boxShadow: "0 2px 8px rgba(0,0,0,0.06)", display: "flex", gap: 14, alignItems: "center", flexWrap: "wrap" }}>
+            <div style={{ flex: 1, minWidth: 200 }}>
+              <div style={{ fontWeight: 800, fontSize: 15, color: "#0F1F24", marginBottom: 3 }}>{p.name}</div>
+              <div style={{ fontSize: 12, color: "#6B7B80", marginBottom: 4 }}>{p.address}</div>
+              <div style={{ fontSize: 12, color: "#46565B", marginBottom: 8 }}>{p.phone}</div>
+              <span style={{ background: p.open ? "#ECFDF5" : "#FEF2F2", color: p.open ? "#059669" : "#DC2626", fontSize: 11, fontWeight: 700, borderRadius: 20, padding: "3px 10px" }}>
+                {p.status}
+              </span>
+            </div>
+            <a href={`tel:${p.phone.replace(/\s/g, "")}`}
+              style={{ background: "#7C3AED", borderRadius: 10, padding: "10px 20px", color: "#fff", fontWeight: 700, fontSize: 13, textDecoration: "none", whiteSpace: "nowrap" }}>
+              Appeler
+            </a>
+          </div>
+        ))}
+      </div>
+    ));
+  }
+
+  // ── Screen: Carnet ──────────────────────────────────────────────────────────
+  if (siteScreen === "carnet") {
+    const carnetItems = [
+      { label: "Groupe sanguin", value: "O+" },
+      { label: "Allergies", value: "Aucune connue" },
+      { label: "Maladies chroniques", value: "Paludisme récidivant" },
+      { label: "Dernière consultation", value: "28 juin 2026" },
+      { label: "Vaccins à jour", value: "Fièvre jaune, Polio" },
+      { label: "Médecin traitant", value: "Dr. Béatrice Nzapa" },
+    ];
+
+    const statutColor = (s: string) => {
+      if (s === "Confirmé") return "#059669";
+      if (s === "En attente") return "#D97706";
+      if (s === "Annulé") return "#DC2626";
+      return "#6B7B80";
+    };
+
+    const last3 = appointments.slice(0, 3);
+
+    return renderScreenLayout("Mon carnet de santé", (
+      <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+        {/* Health data grid */}
+        <div style={{ display: "grid", gridTemplateColumns: isMobileView ? "1fr" : "repeat(2, 1fr)", gap: 14 }}>
+          {carnetItems.map(item => (
+            <div key={item.label} style={{ background: "#fff", borderRadius: 14, padding: "16px 18px", border: "1px solid #E2EAE8", boxShadow: "0 2px 8px rgba(0,0,0,0.04)" }}>
+              <div style={{ fontSize: 11, color: "#8AA4A8", fontWeight: 600, marginBottom: 6 }}>{item.label}</div>
+              <div style={{ fontWeight: 800, fontSize: 15, color: "#0F1F24" }}>{item.value}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* History */}
+        <div>
+          <div style={{ fontWeight: 800, fontSize: 18, color: "#0F1F24", marginBottom: 14 }}>Historique des consultations</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {last3.map(a => (
+              <div key={a.id} style={{ background: "#fff", borderRadius: 14, padding: "14px 18px", border: "1px solid #E2EAE8", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: 14, color: "#0F1F24" }}>{a.doctorName}</div>
+                  <div style={{ fontSize: 12, color: "#6B7B80" }}>{a.specialty} · {a.date} à {a.heure}</div>
+                </div>
+                <span style={{ background: `${statutColor(a.statut)}18`, color: statutColor(a.statut), fontSize: 11, fontWeight: 700, borderRadius: 20, padding: "4px 10px" }}>
+                  {a.statut}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    ));
+  }
+
+  // ── Screen: RDV ─────────────────────────────────────────────────────────────
+  if (siteScreen === "rdv") {
+    const avenirStatuts = ["Confirmé", "En attente"];
+    const passesStatuts = ["Terminé", "Annulé"];
+
+    const filtered = appointments.filter(a =>
+      rdvTab === "avenir" ? avenirStatuts.includes(a.statut) : passesStatuts.includes(a.statut)
+    );
+
+    const statutColor = (s: string) => {
+      if (s === "Confirmé") return "#059669";
+      if (s === "En attente") return "#D97706";
+      if (s === "Annulé") return "#DC2626";
+      return "#6B7B80";
+    };
+
+    return renderScreenLayout("Mes rendez-vous", (
+      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+        {/* Tabs */}
+        <div style={{ display: "flex", background: "#fff", borderRadius: 12, padding: 4, border: "1px solid #E2EAE8", alignSelf: "flex-start", gap: 4 }}>
+          {(["avenir", "passes"] as const).map(tab => (
+            <button key={tab} onClick={() => setRdvTab(tab)}
+              style={{ padding: "8px 20px", borderRadius: 9, border: "none", cursor: "pointer", fontSize: 13, fontWeight: 700, fontFamily: "inherit", background: rdvTab === tab ? "#0E7C7B" : "transparent", color: rdvTab === tab ? "#fff" : "#6B7B80" }}>
+              {tab === "avenir" ? "À venir" : "Passés"}
+            </button>
+          ))}
+        </div>
+
+        {filtered.length === 0 ? (
+          <div style={{ background: "#fff", borderRadius: 16, padding: "40px 24px", textAlign: "center", border: "1px solid #E2EAE8" }}>
+            <span className="material-symbols-rounded" style={{ fontSize: 40, color: "#E2EAE8", display: "block", marginBottom: 12 }}>event_note</span>
+            <div style={{ color: "#6B7B80", fontSize: 14, marginBottom: 16 }}>Aucun rendez-vous</div>
+            <button onClick={() => setSiteScreen("search")}
+              style={{ background: "#0E7C7B", border: "none", borderRadius: 10, padding: "10px 22px", color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>
+              Prendre RDV
+            </button>
+          </div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            {filtered.map(a => {
+              const initials = a.doctorName.split(" ").filter((w: string) => w.length > 1).map((w: string) => w[0]).join("").toUpperCase().slice(0, 2);
+              return (
+                <div key={a.id} style={{ background: "#fff", borderRadius: 16, padding: "16px 20px", border: "1px solid #E2EAE8", boxShadow: "0 2px 8px rgba(0,0,0,0.05)", display: "flex", gap: 14, alignItems: "center" }}>
+                  <div style={{ width: 46, height: 46, borderRadius: "50%", background: "#0E7C7B", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 800, fontSize: 16, flexShrink: 0 }}>{initials}</div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 800, fontSize: 14, color: "#0F1F24" }}>{a.doctorName}</div>
+                    <div style={{ fontSize: 12, color: "#6B7B80", marginTop: 2 }}>{a.specialty}</div>
+                    <div style={{ fontSize: 12, color: "#46565B", marginTop: 4 }}>{a.date} · {a.heure}</div>
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-end" }}>
+                    <span style={{ background: `${statutColor(a.statut)}18`, color: statutColor(a.statut), fontSize: 11, fontWeight: 700, borderRadius: 20, padding: "3px 10px" }}>{a.statut}</span>
+                    <span style={{ background: "#F4F7F6", color: "#46565B", fontSize: 11, fontWeight: 600, borderRadius: 20, padding: "3px 10px" }}>{a.type}</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    ));
+  }
+
+  // ── Screen: Téléconsultation ────────────────────────────────────────────────
+  if (siteScreen === "teleconsult") {
+    const teleDocs = doctors.filter(d => d.teleconsult === true);
+
+    return renderScreenLayout("Téléconsultation", (
+      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+        {/* Info banner */}
+        <div style={{ background: "#EEF4FF", border: "1px solid #2563EB30", borderRadius: 14, padding: "14px 18px", display: "flex", alignItems: "center", gap: 10 }}>
+          <span className="material-symbols-rounded" style={{ fontSize: 22, color: "#1D69E5" }}>videocam</span>
+          <span style={{ fontSize: 14, fontWeight: 600, color: "#1D69E5" }}>Consultez depuis chez vous · Médecins disponibles maintenant</span>
+        </div>
+
+        {/* Doctor cards */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {teleDocs.map(d => (
+            <div key={d.id}
+              onMouseEnter={() => setHovCard(d.id)} onMouseLeave={() => setHovCard(null)}
+              style={{ background: "#fff", borderRadius: 16, padding: "16px 20px", boxShadow: hovCard === d.id ? "0 8px 24px rgba(0,0,0,0.1)" : "0 2px 8px rgba(0,0,0,0.06)", border: "1px solid #E2EAE8", display: "flex", gap: 14, alignItems: "center", transition: "all 0.15s" }}>
+              <div style={{ width: 52, height: 52, borderRadius: "50%", background: "#0E7C7B", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 800, fontSize: 18, flexShrink: 0 }}>{d.initials}</div>
+              <div style={{ flex: 1 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 5, flexWrap: "wrap" }}>
+                  <span style={{ fontWeight: 800, fontSize: 15, color: "#0F1F24" }}>{d.name}</span>
+                  {d.verified && <span className="material-symbols-rounded" style={{ fontSize: 15, color: "#0E7C7B" }}>verified</span>}
+                  <span style={{ background: "#ECFDF5", color: "#059669", fontSize: 10, fontWeight: 700, borderRadius: 5, padding: "2px 7px" }}>Disponible</span>
+                </div>
+                <div style={{ fontSize: 12, color: "#6B7B80", marginTop: 2 }}>{d.specialty}</div>
+                <div style={{ display: "flex", gap: 10, marginTop: 4, flexWrap: "wrap" }}>
+                  <span style={{ fontSize: 12, color: "#D97706" }}>★ {d.rating} <span style={{ color: "#8AA4A8" }}>({d.reviews})</span></span>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: d.price.startsWith("Gratuit") ? "#059669" : "#0F1F24" }}>{d.price}</span>
+                </div>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8, flexShrink: 0 }}>
+                <button
+                  onClick={() => showToast("Connexion en cours…")}
+                  style={{ background: "#1D69E5", border: "none", borderRadius: 10, padding: "9px 16px", color: "#fff", fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" }}>
+                  Rejoindre
+                </button>
+                <button
+                  onClick={() => openBooking(d.id)}
+                  onMouseEnter={() => setHovBtn(d.id)} onMouseLeave={() => setHovBtn(null)}
+                  style={{ background: hovBtn === d.id ? "#0A6060" : "#0E7C7B", border: "none", borderRadius: 10, padding: "9px 16px", color: "#fff", fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" }}>
+                  Prendre RDV
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Footer note */}
+        <div style={{ background: "#F6F8F7", borderRadius: 12, padding: "12px 16px", display: "flex", alignItems: "center", gap: 8 }}>
+          <span className="material-symbols-rounded" style={{ fontSize: 16, color: "#8AA4A8" }}>info</span>
+          <span style={{ fontSize: 12, color: "#6B7B80" }}>La téléconsultation nécessite une connexion internet stable</span>
+        </div>
+      </div>
+    ));
+  }
+
+  // ── Screen: Famille ─────────────────────────────────────────────────────────
+  if (siteScreen === "famille") {
+    const members = [
+      { initials: "NY", name: "Nadège Yakité", relation: "Vous", detail: "Adulte", blood: "O+", color: "#0E7C7B" },
+      { initials: "TY", name: "Théodore Yakité", relation: "Enfant", detail: "8 ans", blood: "A+", color: "#7C3AED" },
+      { initials: "MY", name: "Marie Yakité", relation: "Parent", detail: "54 ans", blood: "B+", color: "#D97706" },
+    ];
+
+    return renderScreenLayout("Ma famille", (
+      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+        <div style={{ fontSize: 14, color: "#6B7B80" }}>Gérez les rendez-vous de toute votre famille</div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {members.map(m => (
+            <div key={m.name} style={{ background: "#fff", borderRadius: 16, padding: "18px 20px", border: "1px solid #E2EAE8", boxShadow: "0 2px 8px rgba(0,0,0,0.05)", display: "flex", gap: 14, alignItems: "center" }}>
+              <div style={{ width: 52, height: 52, borderRadius: "50%", background: m.color, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 800, fontSize: 18, flexShrink: 0 }}>{m.initials}</div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 800, fontSize: 15, color: "#0F1F24" }}>{m.name}</div>
+                <div style={{ fontSize: 12, color: "#6B7B80", marginTop: 2 }}>{m.relation} · {m.detail}</div>
+                <div style={{ fontSize: 12, color: "#6B7B80", marginTop: 2 }}>Groupe sanguin : <strong style={{ color: "#DC2626" }}>{m.blood}</strong></div>
+              </div>
+              <button
+                onClick={() => setSiteScreen("search")}
+                style={{ background: "#0E7C7B", border: "none", borderRadius: 10, padding: "9px 16px", color: "#fff", fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" }}>
+                Prendre RDV
+              </button>
+            </div>
+          ))}
+        </div>
+
+        <button
+          onClick={() => showToast("Bientôt disponible")}
+          style={{ background: "#fff", border: "2px dashed #E2EAE8", borderRadius: 16, padding: "16px", color: "#6B7B80", fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+          <span className="material-symbols-rounded" style={{ fontSize: 20, color: "#0E7C7B" }}>add</span>
+          Ajouter un membre
+        </button>
+      </div>
+    ));
+  }
+
+  // ── Screen: Don de sang ─────────────────────────────────────────────────────
+  if (siteScreen === "don") {
+    const criteria = [
+      { icon: "cake", label: "18 – 65 ans", desc: "Tranche d'âge requise" },
+      { icon: "fitness_center", label: "> 50 kg", desc: "Poids minimum requis" },
+      { icon: "favorite", label: "Bonne santé", desc: "Pas de maladie en cours" },
+    ];
+
+    const collectPoints = [
+      { name: "CHU de Bangui", address: "Boulevard de l'Indépendance", hours: "Lun–Ven · 7h00 – 15h00" },
+      { name: "Hôpital Communautaire", address: "Avenue des Martyrs", hours: "Mar & Jeu · 8h00 – 13h00" },
+    ];
+
+    return renderScreenLayout("Don de sang", (
+      <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+        {/* Hero */}
+        <div style={{ background: "#DC2626", borderRadius: 16, padding: "28px 24px", textAlign: "center" }}>
+          <span className="material-symbols-rounded" style={{ fontSize: 52, color: "#fff", display: "block", marginBottom: 10 }}>bloodtype</span>
+          <div style={{ fontWeight: 800, fontSize: 22, color: "#fff", marginBottom: 6 }}>Donnez du sang, sauvez des vies</div>
+          <div style={{ fontSize: 13, color: "rgba(255,255,255,0.8)" }}>Chaque don peut sauver jusqu'à 3 vies</div>
+        </div>
+
+        {/* Criteria */}
+        <div>
+          <div style={{ fontWeight: 800, fontSize: 18, color: "#0F1F24", marginBottom: 14 }}>Qui peut donner ?</div>
+          <div style={{ display: "grid", gridTemplateColumns: isMobileView ? "1fr" : "repeat(3, 1fr)", gap: 12 }}>
+            {criteria.map(c => (
+              <div key={c.label} style={{ background: "#fff", borderRadius: 14, padding: "18px", border: "1px solid #E2EAE8", textAlign: "center" }}>
+                <span className="material-symbols-rounded" style={{ fontSize: 30, color: "#DC2626", display: "block", marginBottom: 8 }}>{c.icon}</span>
+                <div style={{ fontWeight: 800, fontSize: 15, color: "#0F1F24", marginBottom: 4 }}>{c.label}</div>
+                <div style={{ fontSize: 12, color: "#6B7B80" }}>{c.desc}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Compatibility table */}
+        <div>
+          <div style={{ fontWeight: 800, fontSize: 18, color: "#0F1F24", marginBottom: 14 }}>Tableau de compatibilité</div>
+          <div style={{ background: "#fff", borderRadius: 14, border: "1px solid #E2EAE8", overflow: "hidden" }}>
+            {/* Header */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", background: "#F4F7F6", padding: "10px 16px" }}>
+              <div style={{ fontWeight: 700, fontSize: 12, color: "#6B7B80" }}>Groupe</div>
+              <div style={{ fontWeight: 700, fontSize: 12, color: "#6B7B80" }}>Peut donner à</div>
+            </div>
+            {BLOOD_COMPAT.map((row, i) => (
+              <div key={row.group} style={{ display: "grid", gridTemplateColumns: "1fr 2fr", padding: "10px 16px", borderTop: i > 0 ? "1px solid #F4F7F6" : "none" }}>
+                <div style={{ fontWeight: 800, fontSize: 14, color: "#DC2626" }}>{row.group}</div>
+                <div style={{ fontSize: 13, color: "#46565B" }}>{row.canGiveTo}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Collection points */}
+        <div>
+          <div style={{ fontWeight: 800, fontSize: 18, color: "#0F1F24", marginBottom: 14 }}>Points de collecte</div>
+          <div style={{ display: "grid", gridTemplateColumns: isMobileView ? "1fr" : "repeat(2, 1fr)", gap: 12 }}>
+            {collectPoints.map(p => (
+              <div key={p.name} style={{ background: "#fff", borderRadius: 14, padding: "16px 18px", border: "1px solid #E2EAE8" }}>
+                <div style={{ fontWeight: 800, fontSize: 14, color: "#0F1F24", marginBottom: 4 }}>{p.name}</div>
+                <div style={{ fontSize: 12, color: "#6B7B80", marginBottom: 3, display: "flex", alignItems: "center", gap: 4 }}>
+                  <span className="material-symbols-rounded" style={{ fontSize: 13 }}>location_on</span>
+                  {p.address}
+                </div>
+                <div style={{ fontSize: 12, color: "#6B7B80", display: "flex", alignItems: "center", gap: 4 }}>
+                  <span className="material-symbols-rounded" style={{ fontSize: 13 }}>schedule</span>
+                  {p.hours}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* CTA */}
+        <button
+          onClick={() => showToast("Un agent vous contactera pour prendre rendez-vous")}
+          style={{ background: "#DC2626", border: "none", borderRadius: 14, padding: "16px", color: "#fff", fontWeight: 700, fontSize: 16, cursor: "pointer", fontFamily: "inherit" }}>
+          Je souhaite donner
+        </button>
+      </div>
+    ));
+  }
+
+  // ── Screen: Search results ──────────────────────────────────────────────────
   if (siteScreen === "search") {
     const filteredDocs = doctors.filter(d => {
       if (filterType === "teleconsult" && !d.teleconsult) return false;
@@ -291,7 +821,6 @@ export default function SitePage() {
     return (
       <div style={{ background: "#F4F7F6", minHeight: "calc(100vh - 52px)" }}>
         <div style={{ maxWidth: 1100, margin: "0 auto", padding: "0 20px" }}>
-          {/* Back button */}
           <div style={{ padding: "18px 0 10px" }}>
             <button onClick={() => setSiteScreen("landing")}
               style={{ background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 6, color: "#0E7C7B", fontWeight: 700, fontSize: 14, fontFamily: "inherit" }}>
@@ -301,7 +830,6 @@ export default function SitePage() {
           </div>
 
           <div style={{ display: "flex", gap: 24, alignItems: "flex-start" }}>
-            {/* Left sidebar — filters */}
             {!isMobileView && (
               <div style={{ width: 220, flexShrink: 0, background: "#fff", borderRadius: 16, padding: "20px", boxShadow: "0 2px 8px rgba(0,0,0,0.06)", border: "1px solid #E2EAE8" }}>
                 <div style={{ fontWeight: 800, fontSize: 14, color: "#0F1F24", marginBottom: 16 }}>Filtres</div>
@@ -336,7 +864,6 @@ export default function SitePage() {
                   </label>
                 ))}
 
-                {/* Specialty chips */}
                 <div style={{ fontWeight: 700, fontSize: 12, color: "#6B7B80", marginBottom: 10, marginTop: 16 }}>Spécialité</div>
                 {SPECIALTIES.map(s => (
                   <button key={s.label} onClick={() => { setSelectedSpecialty(s.label); setSpecialtyFilter(s.label); }}
@@ -347,13 +874,11 @@ export default function SitePage() {
               </div>
             )}
 
-            {/* Right — doctor list */}
             <div style={{ flex: 1 }}>
               <div style={{ fontWeight: 800, fontSize: 18, color: "#0F1F24", marginBottom: 12 }}>
                 {filteredDocs.length} praticiens · Bangui
               </div>
 
-              {/* Filter chips row */}
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
                 {specialtyFilter && (
                   <button onClick={() => setSpecialtyFilter(null)}
@@ -388,7 +913,7 @@ export default function SitePage() {
                         Prochain créneau<br />
                         <strong style={{ color: "#0E7C7B" }}>{d.dispo || "Auj."}</strong>
                       </div>
-                      <button onClick={() => { setSelectedDoctor(d.id); setBookingStep("doctor"); setSelectedSlot(null); setSelectedDay(0); setModal("bookingModal"); }}
+                      <button onClick={() => openBooking(d.id)}
                         onMouseEnter={() => setHovBtn(d.id)} onMouseLeave={() => setHovBtn(null)}
                         style={{ background: hovBtn === d.id ? "#0A6060" : "#0E7C7B", border: "none", borderRadius: 10, padding: "9px 18px", color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" }}>
                         Prendre RDV
@@ -406,6 +931,7 @@ export default function SitePage() {
     );
   }
 
+  // ── Landing page ─────────────────────────────────────────────────────────────
   return (
     <div style={{ background: "#F4F7F6", minHeight: "calc(100vh - 52px)" }}>
 
@@ -423,7 +949,6 @@ export default function SitePage() {
             Médecins vérifiés par l'Ordre National, téléconsultation, paiement Mobile Money, rappels SMS en Français et en Sango.
           </p>
 
-          {/* Search bar */}
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", maxWidth: 640 }}>
             <div style={{ flex: 1, minWidth: 180, position: "relative" }}>
               <span className="material-symbols-rounded" style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", fontSize: 18, color: "#8AA4A8" }}>search</span>
@@ -440,7 +965,6 @@ export default function SitePage() {
             </button>
           </div>
 
-          {/* Stats badges */}
           <div style={{ display: "flex", gap: 12, marginTop: 28, flexWrap: "wrap" }}>
             {[
               { icon: "check_circle", label: "48 Praticiens en ligne", color: "#1F8A5B" },
@@ -476,8 +1000,49 @@ export default function SitePage() {
         </div>
       </section>
 
-      {/* ── Doctors ──────────────────────────────────────────────────────────── */}
+      {/* ── Accès rapide ─────────────────────────────────────────────────────── */}
       <section style={{ background: "#F4F7F6", padding: isMobileView ? "40px 20px" : "60px 40px" }}>
+        <div style={{ maxWidth: 960, margin: "0 auto" }}>
+          <div style={{ fontWeight: 800, fontSize: 22, color: "#0F1F24", marginBottom: 24 }}>Accès rapide</div>
+          <div style={{ display: "grid", gridTemplateColumns: isMobileView ? "repeat(3, 1fr)" : "repeat(5, 1fr)", gap: 14 }}>
+            {QUICK_ACCESS.map(item => (
+              <button
+                key={item.label}
+                onClick={() => {
+                  if (item.screen) {
+                    setSiteScreen(item.screen);
+                  } else if ("toast" in item) {
+                    showToast(item.toast);
+                  }
+                }}
+                onMouseEnter={() => setHovSpec(item.label)} onMouseLeave={() => setHovSpec(null)}
+                style={{
+                  background: "#fff",
+                  border: "1px solid #E2EAE8",
+                  borderRadius: 14,
+                  padding: "20px 12px 16px",
+                  cursor: "pointer",
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  gap: 10,
+                  boxShadow: hovSpec === item.label ? "0 10px 28px rgba(0,0,0,0.12)" : "0 2px 8px rgba(0,0,0,0.06)",
+                  transform: hovSpec === item.label ? "translateY(-4px)" : "none",
+                  transition: "all 0.15s",
+                  fontFamily: "inherit",
+                }}>
+                <div style={{ width: 48, height: 48, borderRadius: "50%", background: `${item.color}18`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <span className="material-symbols-rounded" style={{ fontSize: 24, color: item.color }}>{item.icon}</span>
+                </div>
+                <span style={{ fontSize: 12, color: "#0F1F24", fontWeight: 700, textAlign: "center", lineHeight: 1.3 }}>{item.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── Doctors ──────────────────────────────────────────────────────────── */}
+      <section style={{ background: "#fff", padding: isMobileView ? "40px 20px" : "60px 40px" }}>
         <div style={{ maxWidth: 960, margin: "0 auto" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24, flexWrap: "wrap", gap: 10 }}>
             <div style={{ fontWeight: 800, fontSize: 22, color: "#0F1F24" }}>Praticiens recommandés près de vous</div>
@@ -512,7 +1077,7 @@ export default function SitePage() {
                   <span style={{ fontWeight: 800, fontSize: 13, color: d.price.startsWith("Gratuit") ? "#059669" : "#0F1F24" }}>{d.price}</span>
                 </div>
                 <button
-                  onClick={() => { setSelectedDoctor(d.id); setBookingStep("doctor"); setSelectedSlot(null); setSelectedDay(0); setModal("bookingModal"); }}
+                  onClick={() => openBooking(d.id)}
                   onMouseEnter={() => setHovBtn(d.id)} onMouseLeave={() => setHovBtn(null)}
                   style={{ width: "100%", background: hovBtn === d.id ? "#0A6060" : "#0E7C7B", border: "none", borderRadius: 10, padding: "11px", color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>
                   Prendre RDV
@@ -524,7 +1089,7 @@ export default function SitePage() {
       </section>
 
       {/* ── How it works ─────────────────────────────────────────────────────── */}
-      <section style={{ background: "#fff", padding: isMobileView ? "40px 20px" : "60px 40px" }}>
+      <section style={{ background: "#F4F7F6", padding: isMobileView ? "40px 20px" : "60px 40px" }}>
         <div style={{ maxWidth: 960, margin: "0 auto" }}>
           <div style={{ fontWeight: 800, fontSize: 22, color: "#0F1F24", textAlign: "center", marginBottom: 36 }}>Comment ça marche ?</div>
           <div style={{ display: "grid", gridTemplateColumns: isMobileView ? "1fr 1fr" : "repeat(4, 1fr)", gap: 20 }}>
