@@ -3,7 +3,7 @@ import { persist } from "zustand/middleware";
 
 export type ActiveView = "patient" | "site" | "agent" | "clinique";
 export type NetworkMode = "online" | "sms" | "offline";
-export type UserRole = "patient" | "medecin" | "agent" | "etablissement";
+export type UserRole = "patient" | "personnel";
 export type AppointmentStatut = "Confirmé" | "En attente" | "Annulé" | "Terminé";
 export type AppointmentType = "Présentiel" | "Téléconsultation";
 export type PatientStatut = "Actif" | "Suivi" | "Référé";
@@ -226,7 +226,7 @@ export const useAppStore = create<AppState>()(
       userName: "Nadège Yakité",
       userInitials: "NY",
       userPhone: "+236 72 00 00 00",
-      userRole: "patient",
+      userRole: "patient" as UserRole,
       activeView: "patient",
       networkMode: "online",
       doctors: initialDoctors,

@@ -18,30 +18,12 @@ const ROLES: { id: UserRole; icon: string; label: string; sub: string; color: st
     href: "/patient",
   },
   {
-    id: "medecin",
+    id: "personnel",
     icon: "stethoscope",
-    label: "Médecin / Pro de santé",
-    sub: "Gérer mon agenda",
+    label: "Personnel de santé",
+    sub: "Médecin, infirmier, clinique…",
     color: "#2563EB",
     defaultName: "Dr. Béatrice Nzapa",
-    href: "/clinique",
-  },
-  {
-    id: "agent",
-    icon: "person_pin_circle",
-    label: "Agent ASC",
-    sub: "Accompagner mes patients",
-    color: "#059669",
-    defaultName: "Pierre Yangba",
-    href: "/agent",
-  },
-  {
-    id: "etablissement",
-    icon: "local_hospital",
-    label: "Établissement",
-    sub: "Gérer la clinique",
-    color: "#7C3AED",
-    defaultName: "Clinique SICA",
     href: "/clinique",
   },
 ];
@@ -191,15 +173,12 @@ export default function LoginPage() {
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          {/* Nom — pour inscription ou certains rôles */}
-          {(mode === "register" || selectedRole === "medecin" || selectedRole === "etablissement") && mode === "register" && (
+          {/* Nom — à l'inscription */}
+          {mode === "register" && (
             <div>
-              <label style={{ color: "#8AA4A8", fontSize: 12, fontWeight: 600, display: "block", marginBottom: 6 }}>
-                {selectedRole === "etablissement" ? "Nom de l'établissement" : "Nom complet"}
-              </label>
+              <label style={{ color: "#8AA4A8", fontSize: 12, fontWeight: 600, display: "block", marginBottom: 6 }}>Nom complet</label>
               <input value={name} onChange={e => setName(e.target.value)}
-                placeholder={selectedRole === "etablissement" ? "Ex : Clinique SICA · Bangui" : "Prénom Nom"}
-                style={inp} />
+                placeholder="Prénom Nom" style={inp} />
             </div>
           )}
 
@@ -225,13 +204,6 @@ export default function LoginPage() {
             )}
           </div>
 
-          {/* Numéro d'ordre — médecins uniquement à l'inscription */}
-          {selectedRole === "medecin" && mode === "register" && (
-            <div>
-              <label style={{ color: "#8AA4A8", fontSize: 12, fontWeight: 600, display: "block", marginBottom: 6 }}>N° Ordre National des Médecins</label>
-              <input placeholder="ONM-RCA-XXXX" style={inp} />
-            </div>
-          )}
 
           {/* Erreur */}
           {error && (

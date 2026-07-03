@@ -5,17 +5,14 @@ import { useAppStore } from "@/store/appStore";
 import type { ActiveView, NetworkMode, UserRole } from "@/store/appStore";
 
 const NAV_ITEMS: { view: ActiveView; icon: string; label: string; href: string; roles: UserRole[] }[] = [
-  { view: "patient",  icon: "smartphone",      label: "App patient", href: "/patient",  roles: ["patient"] },
-  { view: "site",     icon: "language",         label: "Site web",    href: "/site",     roles: ["patient", "medecin", "agent", "etablissement"] },
-  { view: "agent",    icon: "diversity_3",      label: "Agent",       href: "/agent",    roles: ["agent"] },
-  { view: "clinique", icon: "stethoscope",      label: "Clinique",    href: "/clinique", roles: ["medecin", "etablissement"] },
+  { view: "patient",  icon: "smartphone",  label: "App patient",      href: "/patient",  roles: ["patient"] },
+  { view: "site",     icon: "language",    label: "Site web",         href: "/site",     roles: ["patient", "personnel"] },
+  { view: "clinique", icon: "stethoscope", label: "Espace pro",       href: "/clinique", roles: ["personnel"] },
 ];
 
 const ROLE_LABELS: Record<UserRole, { label: string; icon: string; color: string }> = {
-  patient:      { label: "Patient",      icon: "person",           color: "#0E7C7B" },
-  medecin:      { label: "Médecin",      icon: "stethoscope",      color: "#2563EB" },
-  agent:        { label: "Agent ASC",    icon: "person_pin_circle", color: "#059669" },
-  etablissement:{ label: "Établissement",icon: "local_hospital",   color: "#7C3AED" },
+  patient:   { label: "Patient",            icon: "person",      color: "#0E7C7B" },
+  personnel: { label: "Personnel de santé", icon: "stethoscope", color: "#2563EB" },
 };
 
 const NET: Record<NetworkMode, { icon: string; label: string; sub: string; color: string }> = {
