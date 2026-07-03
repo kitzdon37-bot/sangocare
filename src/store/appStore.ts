@@ -3,6 +3,7 @@ import { persist } from "zustand/middleware";
 
 export type ActiveView = "patient" | "site" | "agent" | "clinique";
 export type NetworkMode = "online" | "sms" | "offline";
+export type UserRole = "patient" | "medecin" | "agent" | "etablissement";
 export type AppointmentStatut = "Confirmé" | "En attente" | "Annulé" | "Terminé";
 export type AppointmentType = "Présentiel" | "Téléconsultation";
 export type PatientStatut = "Actif" | "Suivi" | "Référé";
@@ -184,6 +185,7 @@ interface AppState {
   userName: string;
   userInitials: string;
   userPhone: string;
+  userRole: UserRole;
   activeView: ActiveView;
   networkMode: NetworkMode;
   doctors: Doctor[];
@@ -197,7 +199,7 @@ interface AppState {
   selectedSpecialty: string | null;
   isMobile: boolean;
   toast: { message: string; visible: boolean };
-  login: (phone: string, name?: string) => void;
+  login: (phone: string, name?: string, role?: UserRole) => void;
   logout: () => void;
   setActiveView: (v: ActiveView) => void;
   setNetworkMode: (m: NetworkMode) => void;
@@ -224,6 +226,7 @@ export const useAppStore = create<AppState>()(
       userName: "Nadège Yakité",
       userInitials: "NY",
       userPhone: "+236 72 00 00 00",
+      userRole: "patient",
       activeView: "patient",
       networkMode: "online",
       doctors: initialDoctors,
@@ -237,10 +240,10 @@ export const useAppStore = create<AppState>()(
       selectedSpecialty: null,
       isMobile: false,
       toast: { message: "", visible: false },
-      login: (phone, name) => {
+      login: (phone, name, role) => {
         const n = name || "Utilisateur";
         const initials = n.split(" ").map((w: string) => w[0]).join("").toUpperCase().slice(0, 2);
-        set({ isLoggedIn: true, userName: n, userInitials: initials, userPhone: phone });
+        set({ isLoggedIn: true, userName: n, userInitials: initials, userPhone: phone, userRole: role || "patient" });
       },
       logout: () => set({ isLoggedIn: false }),
       setActiveView: (v) => set({ activeView: v }),
