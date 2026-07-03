@@ -1,5 +1,5 @@
 "use client";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAppStore } from "@/store/appStore";
 import TopNav from "@/components/TopNav";
@@ -7,10 +7,15 @@ import TopNav from "@/components/TopNav";
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { isLoggedIn, setIsMobile, toast } = useAppStore();
   const router = useRouter();
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    if (!isLoggedIn) router.push("/");
-  }, [isLoggedIn, router]);
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (mounted && !isLoggedIn) router.push("/");
+  }, [mounted, isLoggedIn, router]);
 
   useEffect(() => {
     const handler = () => setIsMobile(window.innerWidth < 768);
@@ -18,6 +23,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     window.addEventListener("resize", handler);
     return () => window.removeEventListener("resize", handler);
   }, [setIsMobile]);
+
+  if (!mounted) return null;
 
   return (
     <div style={{ minHeight: "100vh", background: "#0C1A1E" }}>

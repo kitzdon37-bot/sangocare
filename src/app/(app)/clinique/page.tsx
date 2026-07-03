@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useAppStore } from "@/store/appStore";
-import type { CalendarEvent, AppointmentStatus } from "@/store/appStore";
+import type { CalendarEvent, AppointmentStatut } from "@/store/appStore";
 
 // ─── Palette ──────────────────────────────────────────────────────────────────
 const C = {
@@ -38,7 +38,7 @@ function eventsForDay(events: CalendarEvent[], day: number): CalendarEvent[] {
   return events.filter((e) => e.date === dateStr);
 }
 
-function statusColor(statut: AppointmentStatus): { bg: string; color: string } {
+function statusColor(statut: AppointmentStatut): { bg: string; color: string } {
   switch (statut) {
     case "Confirmé":   return { bg: "#D1FAE5", color: "#065F46" };
     case "En attente": return { bg: "#FEF3C7", color: "#92400E" };
@@ -47,7 +47,7 @@ function statusColor(statut: AppointmentStatus): { bg: string; color: string } {
   }
 }
 
-function StatusBadge({ statut }: { statut: AppointmentStatus }) {
+function StatusBadge({ statut }: { statut: AppointmentStatut }) {
   const s = statusColor(statut);
   return (
     <span style={{ background: s.bg, color: s.color, padding: "2px 10px", borderRadius: 12, fontSize: 12, fontWeight: 600 }}>
@@ -72,28 +72,7 @@ function TypeBadge({ type }: { type: "Présentiel" | "Téléconsultation" }) {
   );
 }
 
-// ─── Toast ────────────────────────────────────────────────────────────────────
-function ToastContainer() {
-  const { toasts, removeToast } = useAppStore();
-  return (
-    <div style={{ position: "fixed", bottom: 24, right: 24, zIndex: 9999, display: "flex", flexDirection: "column", gap: 8 }}>
-      {toasts.map((t) => (
-        <div
-          key={t.id}
-          onClick={() => removeToast(t.id)}
-          style={{
-            background: C.text, color: "#fff",
-            padding: "10px 18px", borderRadius: 8,
-            boxShadow: "0 4px 16px rgba(0,0,0,0.25)",
-            cursor: "pointer", fontSize: 14, fontWeight: 500,
-          }}
-        >
-          {t.message}
-        </div>
-      ))}
-    </div>
-  );
-}
+// Toast is handled by the parent layout
 
 // ─── Modal overlay ────────────────────────────────────────────────────────────
 function ModalOverlay({ onClose, children }: { onClose: () => void; children: React.ReactNode }) {
@@ -163,7 +142,7 @@ export default function CliniquePage() {
   const {
     modal, setModal, showToast,
     patients,
-    calendarEvents, addCalendarEvent, updateCalendarEventStatus,
+    calendarEvents, addCalendarEvent, updateCalendarEvent,
   } = useAppStore();
 
   const [sidebarTab, setSidebarTab] = useState<SidebarTab>("agenda");
@@ -209,7 +188,7 @@ export default function CliniquePage() {
   const filteredPatients = patients.filter((p) =>
     patientSearch === "" ||
     p.nom.toLowerCase().includes(patientSearch.toLowerCase()) ||
-    p.village.toLowerCase().includes(patientSearch.toLowerCase())
+    (p.village || "").toLowerCase().includes(patientSearch.toLowerCase())
   );
 
   // Téléconsult events
@@ -217,7 +196,9 @@ export default function CliniquePage() {
 
   function handleAddConsult() {
     if (!newConsultForm.patientName.trim()) return;
+    const maxId = calendarEvents.reduce((m, e) => { const n = parseInt(e.id.split("-")[1] || "0"); return n > m ? n : m; }, 0);
     addCalendarEvent({
+      id: `CAL-${String(maxId + 1).padStart(3, "0")}`,
       patientName: newConsultForm.patientName,
       date: newConsultForm.date,
       heure: newConsultForm.heure,
@@ -234,7 +215,6 @@ export default function CliniquePage() {
   // ─────────────────────────────────────────────────────────────────────────────
   return (
     <div style={{ display: "flex", height: "100vh", background: C.bg, fontFamily: "system-ui, sans-serif" }}>
-      <ToastContainer />
 
       {/* ── Sidebar ── */}
       <div style={{
@@ -468,7 +448,7 @@ export default function CliniquePage() {
                               <button
                                 onMouseEnter={() => setHovBtn(`term-${ev.id}`)}
                                 onMouseLeave={() => setHovBtn(null)}
-                                onClick={() => { updateCalendarEventStatus(ev.id, "Terminé"); showToast("Consultation terminée"); }}
+                                onClick={() => { updateCalendarEvent(ev.id, "Terminé"); showToast("Consultation terminée"); }}
                                 style={{
                                   background: hovBtn === `term-${ev.id}` ? "#047857" : "#D1FAE5",
                                   color: hovBtn === `term-${ev.id}` ? "#fff" : "#065F46",
@@ -483,7 +463,7 @@ export default function CliniquePage() {
                               <button
                                 onMouseEnter={() => setHovBtn(`cancel-${ev.id}`)}
                                 onMouseLeave={() => setHovBtn(null)}
-                                onClick={() => { updateCalendarEventStatus(ev.id, "Annulé"); showToast("Consultation annulée"); }}
+                                onClick={() => { updateCalendarEvent(ev.id, "Annulé"); showToast("Consultation annulée"); }}
                                 style={{
                                   background: hovBtn === `cancel-${ev.id}` ? C.redHov : "#FEE2E2",
                                   color: hovBtn === `cancel-${ev.id}` ? "#fff" : C.red,
@@ -555,7 +535,7 @@ export default function CliniquePage() {
                       <td style={{ padding: "11px 14px", color: C.muted }}>{p.telephone}</td>
                       <td style={{ padding: "11px 14px", color: C.muted }}>{p.age} ans</td>
                       <td style={{ padding: "11px 14px", color: C.muted }}>{p.village}</td>
-                      <td style={{ padding: "11px 14px", color: C.muted }}>{p.derniereVisite}</td>
+                      <td style={{ padding: "11px 14px", color: C.muted }}>{p.lastVisit}</td>
                       <td style={{ padding: "11px 14px" }}>
                         <span style={{
                           background: p.statut === "Actif" ? "#D1FAE5" : p.statut === "Suivi" ? "#DBEAFE" : "#FFEDD5",
