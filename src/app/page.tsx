@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useAppStore } from "@/store/appStore";
 
 export default function LoginPage() {
-  const { login, showToast } = useAppStore();
+  const { login } = useAppStore();
   const router = useRouter();
   const [phone, setPhone] = useState("");
   const [pin, setPin] = useState("");
@@ -13,9 +13,11 @@ export default function LoginPage() {
   const [hovLogin, setHovLogin] = useState(false);
   const [hovCreate, setHovCreate] = useState(false);
   const [hovSwitch, setHovSwitch] = useState(false);
+  const [error, setError] = useState("");
 
   const handleLogin = () => {
-    if (!phone) { showToast("Entrez votre numéro de téléphone"); return; }
+    if (!phone) { setError("Entrez votre numéro de téléphone"); return; }
+    setError("");
     login("+236 " + phone, mode === "register" ? (name || undefined) : undefined);
     router.push("/patient");
   };
@@ -72,6 +74,12 @@ export default function LoginPage() {
             )}
           </div>
 
+          {error && (
+            <div style={{ background: "rgba(220,38,38,0.15)", border: "1px solid rgba(220,38,38,0.4)", borderRadius: 10, padding: "10px 14px", color: "#FCA5A5", fontSize: 13 }}>
+              {error}
+            </div>
+          )}
+
           <button onClick={handleLogin}
             onMouseEnter={() => setHovLogin(true)} onMouseLeave={() => setHovLogin(false)}
             style={{ background: hovLogin ? "#0A6060" : "#0E7C7B", border: "none", borderRadius: 12, padding: "14px", color: "#fff", fontWeight: 700, fontSize: 15, cursor: "pointer", width: "100%", fontFamily: "inherit" }}>
@@ -88,8 +96,9 @@ export default function LoginPage() {
 
           <button onClick={() => { login("+236 72 00 00 00", "Nadège Yakité"); router.push("/patient"); }}
             onMouseEnter={() => setHovSwitch(true)} onMouseLeave={() => setHovSwitch(false)}
-            style={{ background: "transparent", border: "none", color: "#8AA4A8", fontSize: 12, cursor: "pointer", textDecoration: "underline", fontFamily: "inherit" }}>
-            {hovSwitch ? "→ Accès démo" : "Accès démo (sans compte)"}
+            style={{ background: hovSwitch ? "rgba(14,124,123,0.15)" : "rgba(14,124,123,0.08)", border: "1.5px dashed rgba(14,124,123,0.5)", borderRadius: 12, padding: "12px", color: "#0E7C7B", fontSize: 13, cursor: "pointer", fontFamily: "inherit", fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+            <span className="material-symbols-rounded" style={{ fontSize: 16 }}>play_circle</span>
+            Accès démo — entrez sans compte
           </button>
         </div>
       </div>
