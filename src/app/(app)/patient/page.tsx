@@ -5,6 +5,7 @@ import type { Appointment } from "@/store/appStore";
 
 type PScreen = "home" | "search" | "doctor" | "payment" | "done";
 type SearchFilter = "tous" | "teleconsult" | "2km" | "dispo";
+type Specialty = string | null;
 type PayMethod = "orange" | "moov" | "place";
 
 const SPECIALTIES = [
@@ -51,6 +52,7 @@ export default function PatientPage() {
   const [pScreen, setPScreen] = useState<PScreen>("home");
   const [filter, setFilter] = useState<SearchFilter>("tous");
   const [searchInput, setSearchInput] = useState("");
+  const [specialtyFilter, setSpecialtyFilter] = useState<Specialty>(null);
   const [selectedDay, setSelectedDay] = useState(0);
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
   const [payMethod, setPayMethod] = useState<PayMethod>("orange");
@@ -65,6 +67,11 @@ export default function PatientPage() {
       const km = parseFloat((d.distance || "").replace(",", "."));
       if (isNaN(km) || km > 2) return false;
     }
+    if (filter === "dispo") {
+      const dispo = (d.dispo || "Auj.").toLowerCase();
+      if (!dispo.startsWith("auj") && !dispo.startsWith("aujourd")) return false;
+    }
+    if (specialtyFilter && !d.specialty.toLowerCase().includes(specialtyFilter.toLowerCase())) return false;
     if (!searchInput) return true;
     return (
       d.name.toLowerCase().includes(searchInput.toLowerCase()) ||
@@ -121,7 +128,7 @@ export default function PatientPage() {
       ].map(tab => (
         <button key={tab.id}
           onClick={() => {
-            if (tab.id === "search") { setPScreen("search"); setCarnetOpen(false); }
+            if (tab.id === "search") { setSpecialtyFilter(null); setFilter("tous"); setPScreen("search"); setCarnetOpen(false); }
             else if (tab.id === "accueil") { setPScreen("home"); setCarnetOpen(false); }
             else if (tab.id === "carnet") { setCarnetOpen(true); setPScreen("home"); }
             else { showToast("Menu — bientôt disponible"); }
@@ -145,7 +152,7 @@ export default function PatientPage() {
         <div style={{ width: 38, height: 38, borderRadius: "50%", background: "#0E7C7B", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 800, fontSize: 14 }}>{userInitials}</div>
       </div>
 
-      <button onClick={() => setPScreen("search")}
+      <button onClick={() => { setSpecialtyFilter(null); setFilter("tous"); setPScreen("search"); }}
         style={{ background: "#F6F8F7", border: "none", borderRadius: 12, padding: "10px 14px", display: "flex", alignItems: "center", gap: 8, cursor: "pointer", width: "100%", textAlign: "left", fontFamily: "inherit" }}>
         <span className="material-symbols-rounded" style={{ fontSize: 18, color: "#8AA4A8" }}>search</span>
         <span style={{ fontSize: 13, color: "#8AA4A8" }}>Médecin, spécialité, symptôme…</span>
@@ -155,7 +162,7 @@ export default function PatientPage() {
         <div style={{ fontSize: 12, fontWeight: 700, color: "#6B7B80", marginBottom: 10 }}>Besoin d'un soin ?</div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8 }}>
           {SPECIALTIES.map(s => (
-            <button key={s.label} onClick={() => setPScreen("search")}
+            <button key={s.label} onClick={() => { setSpecialtyFilter(s.label); setFilter("tous"); setPScreen("search"); }}
               style={{ background: "#fff", border: "none", borderRadius: 12, padding: "10px 4px", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 5, boxShadow: "0 1px 5px rgba(0,0,0,0.07)", fontFamily: "inherit" }}>
               <div style={{ width: 34, height: 34, borderRadius: "50%", background: `${s.color}18`, display: "flex", alignItems: "center", justifyContent: "center" }}>
                 <span className="material-symbols-rounded" style={{ fontSize: 18, color: s.color }}>{s.icon}</span>
@@ -203,7 +210,11 @@ export default function PatientPage() {
         <div style={{ fontSize: 12, fontWeight: 700, color: "#6B7B80", marginBottom: 10 }}>Accès rapide</div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 7 }}>
           {QUICK.map(q => (
-            <button key={q.label} onClick={() => showToast(q.label)}
+            <button key={q.label} onClick={() => {
+              if (q.label === "Mon carnet") { setCarnetOpen(true); setPScreen("home"); }
+              else if (q.label === "Mes RDV") { setPScreen("search"); setSpecialtyFilter(null); setFilter("tous"); }
+              else { showToast(q.label + " — bientôt disponible"); }
+            }}
               style={{ background: "#fff", border: "none", borderRadius: 10, padding: "8px 4px", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 4, boxShadow: "0 1px 4px rgba(0,0,0,0.06)", fontFamily: "inherit" }}>
               <div style={{ width: 28, height: 28, borderRadius: "50%", background: `${q.color}18`, display: "flex", alignItems: "center", justifyContent: "center" }}>
                 <span className="material-symbols-rounded" style={{ fontSize: 15, color: q.color }}>{q.icon}</span>
@@ -240,7 +251,7 @@ export default function PatientPage() {
     <>
       <div style={{ background: "#fff", borderBottom: "1px solid #E2EAE8", padding: "10px 12px", flexShrink: 0 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-          <button onClick={() => setPScreen("home")}
+          <button onClick={() => { setPScreen("home"); setSpecialtyFilter(null); }}
             style={{ background: "none", border: "none", cursor: "pointer", padding: 4, display: "flex" }}>
             <span className="material-symbols-rounded" style={{ fontSize: 22, color: "#0F1F24" }}>arrow_back</span>
           </button>
@@ -252,6 +263,13 @@ export default function PatientPage() {
           </div>
         </div>
         <div style={{ display: "flex", gap: 6, overflowX: "auto" }}>
+          {specialtyFilter && (
+            <button onClick={() => setSpecialtyFilter(null)}
+              style={{ background: "#0E7C7B", border: "none", borderRadius: 20, padding: "5px 10px", fontSize: 11, fontWeight: 700, color: "#fff", cursor: "pointer", whiteSpace: "nowrap", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 4 }}>
+              {specialtyFilter}
+              <span className="material-symbols-rounded" style={{ fontSize: 13 }}>close</span>
+            </button>
+          )}
           {([
             ["tous", "Tous"],
             ["teleconsult", "Téléconsult"],

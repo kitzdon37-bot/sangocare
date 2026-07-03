@@ -272,6 +272,6 @@ export const useAppStore = create<AppState>()(
         calendarEvents: s.calendarEvents.map((e) => e.id === id ? { ...e, statut } : e),
       })),
     }),
-    { name: "sangocare-store" }
+    { name: "sangocare-store-v2" }
   )
 );
