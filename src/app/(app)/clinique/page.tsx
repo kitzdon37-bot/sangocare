@@ -30,7 +30,7 @@ const JULY_START_DOW = 2; // 0=Mon, 1=Tue, 2=Wed...
 const JULY_DAYS = 31;
 const DAY_LABELS = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
 
-type SidebarTab = "agenda" | "patients" | "teleconsult" | "messages" | "aide";
+type SidebarTab = "agenda" | "patients" | "teleconsult" | "messages" | "stats" | "attente" | "tarifs" | "equipe" | "avis" | "aide";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function eventsForDay(events: CalendarEvent[], day: number): CalendarEvent[] {
@@ -169,13 +169,19 @@ export default function CliniquePage() {
   const kpiTele = todayEvents.filter((e) => e.type === "Téléconsultation").length;
   const kpiTomorrow = calendarEvents.filter((e) => e.date === tomorrow).length;
 
+  const [calView, setCalView] = useState<"mois" | "semaine" | "jour">("mois");
+
   // Sidebar menu
-  const menuItems: { id: SidebarTab; icon: string; label: string }[] = [
-    { id: "agenda", icon: "calendar_month", label: "Agenda" },
-    { id: "patients", icon: "people", label: "Patients & dossiers" },
-    { id: "teleconsult", icon: "videocam", label: "Téléconsultation" },
-    { id: "messages", icon: "chat", label: "Messages" },
-    { id: "aide", icon: "help_center", label: "Aide & Cartes" },
+  const menuItems: { id: SidebarTab; icon: string; label: string; badge?: number }[] = [
+    { id: "agenda",    icon: "calendar_month",  label: "Agenda" },
+    { id: "patients",  icon: "folder_shared",   label: "Patients & dossiers" },
+    { id: "messages",  icon: "chat",            label: "Messagerie" },
+    { id: "teleconsult", icon: "videocam",      label: "Téléconsultations", badge: kpiTele },
+    { id: "stats",     icon: "monitoring",      label: "Statistiques" },
+    { id: "attente",   icon: "pending_actions", label: "Liste d'attente" },
+    { id: "tarifs",    icon: "payments",        label: "Tarifs & horaires" },
+    { id: "equipe",    icon: "groups",          label: "Équipe" },
+    { id: "avis",      icon: "reviews",         label: "Avis" },
   ];
 
   // Selected day events
@@ -261,7 +267,10 @@ export default function CliniquePage() {
                 }}
               >
                 <span className="material-symbols-rounded" style={{ fontSize: 20, color }}>{item.icon}</span>
-                <span style={{ fontSize: 13, fontWeight: isActive ? 600 : 400, color }}>{item.label}</span>
+                <span style={{ fontSize: 13, fontWeight: isActive ? 600 : 400, color, flex: 1 }}>{item.label}</span>
+                {item.badge != null && item.badge > 0 && (
+                  <span style={{ background: C.blue, color: "#fff", borderRadius: "50%", fontSize: 10, fontWeight: 700, minWidth: 18, height: 18, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 4px" }}>{item.badge}</span>
+                )}
               </div>
             );
           })}
@@ -296,14 +305,42 @@ export default function CliniquePage() {
                 padding: 20,
               }}>
                 {/* Header calendrier */}
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-                  <button style={{ background: "none", border: `1px solid ${C.border}`, borderRadius: 6, padding: "4px 10px", cursor: "pointer", color: C.muted, fontSize: 14 }}>
-                    ‹
-                  </button>
-                  <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: C.text }}>Juillet 2026</h3>
-                  <button style={{ background: "none", border: `1px solid ${C.border}`, borderRadius: 6, padding: "4px 10px", cursor: "pointer", color: C.muted, fontSize: 14 }}>
-                    ›
-                  </button>
+                <div style={{ marginBottom: 16 }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12, flexWrap: "wrap", gap: 8 }}>
+                    <div style={{ display: "flex", background: C.content, borderRadius: 8, padding: 3, gap: 2 }}>
+                      {(["mois", "semaine", "jour"] as const).map(v => (
+                        <button key={v} onClick={() => setCalView(v)}
+                          style={{ background: calView === v ? "#fff" : "transparent", border: "none", borderRadius: 6, padding: "5px 12px", cursor: "pointer", fontSize: 12, fontWeight: calView === v ? 700 : 500, color: calView === v ? C.teal : C.muted, fontFamily: "inherit", boxShadow: calView === v ? "0 1px 4px rgba(0,0,0,0.1)" : "none" }}>
+                          {v.charAt(0).toUpperCase() + v.slice(1)}
+                        </button>
+                      ))}
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <button style={{ background: "none", border: `1px solid ${C.border}`, borderRadius: 6, padding: "5px 10px", cursor: "pointer", color: C.muted, fontSize: 14 }}>
+                        <span className="material-symbols-rounded" style={{ fontSize: 16 }}>chevron_left</span>
+                      </button>
+                      <span style={{ fontSize: 15, fontWeight: 700, color: C.text }}>Juillet 2026</span>
+                      <button style={{ background: "none", border: `1px solid ${C.border}`, borderRadius: 6, padding: "5px 10px", cursor: "pointer", color: C.muted, fontSize: 14 }}>
+                        <span className="material-symbols-rounded" style={{ fontSize: 16 }}>chevron_right</span>
+                      </button>
+                      <button onClick={() => setSelectedDay(3)} style={{ background: C.content, border: `1px solid ${C.border}`, borderRadius: 6, padding: "5px 12px", cursor: "pointer", fontSize: 12, fontWeight: 600, color: C.text, fontFamily: "inherit" }}>Aujourd'hui</button>
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
+                    <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, color: C.muted }}>
+                        <div style={{ width: 10, height: 10, borderRadius: "50%", background: C.teal }} />Présentiel
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, color: C.muted }}>
+                        <div style={{ width: 10, height: 10, borderRadius: "50%", background: C.blue }} />Téléconsult
+                      </div>
+                    </div>
+                    <button onClick={() => showToast("Créneau bloqué")}
+                      style={{ background: "none", border: `1px solid ${C.border}`, borderRadius: 7, padding: "5px 12px", cursor: "pointer", fontSize: 12, fontWeight: 600, color: C.muted, fontFamily: "inherit", display: "flex", alignItems: "center", gap: 5 }}>
+                      <span className="material-symbols-rounded" style={{ fontSize: 15 }}>block</span>
+                      Bloquer un créneau
+                    </button>
+                  </div>
                 </div>
 
                 {/* Grille */}
@@ -641,12 +678,102 @@ export default function CliniquePage() {
           </div>
         )}
 
-        {/* ══ ONGLET AIDE ══ */}
-        {sidebarTab === "aide" && (
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "60vh", flexDirection: "column", gap: 12, color: C.muted }}>
-            <span className="material-symbols-rounded" style={{ fontSize: 56, opacity: 0.25 }}>help_center</span>
-            <div style={{ fontSize: 16, fontWeight: 600 }}>Aide & Cartes de santé</div>
-            <div style={{ fontSize: 13 }}>Documentation et guides disponibles hors-ligne.</div>
+        {/* ══ ONGLET STATISTIQUES ══ */}
+        {sidebarTab === "stats" && (
+          <div>
+            <h2 style={{ fontSize: 20, fontWeight: 800, color: C.text, margin: "0 0 20px" }}>Statistiques</h2>
+            <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
+              <KpiCard icon="today" label="Consultations ce mois" value={calendarEvents.length * 4} color={C.teal} />
+              <KpiCard icon="check_circle" label="Taux de présence" value={87} color={C.green} />
+              <KpiCard icon="videocam" label="Téléconsultations" value={kpiTele * 3} color={C.blue} />
+              <KpiCard icon="star" label="Note moyenne" value={4} color={C.orange} />
+            </div>
+          </div>
+        )}
+
+        {/* ══ ONGLET LISTE D'ATTENTE ══ */}
+        {sidebarTab === "attente" && (
+          <div>
+            <h2 style={{ fontSize: 20, fontWeight: 800, color: C.text, margin: "0 0 20px" }}>Liste d'attente</h2>
+            {calendarEvents.filter(e => e.statut === "En attente").map(e => (
+              <div key={e.id} style={{ background: C.card, borderRadius: 10, padding: "12px 16px", marginBottom: 10, display: "flex", justifyContent: "space-between", alignItems: "center", boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}>
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: 14, color: C.text }}>{e.patientName}</div>
+                  <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>{e.motif} · {e.heure}</div>
+                </div>
+                <button onClick={() => { updateCalendarEvent(e.id, "Confirmé"); showToast("Confirmé !"); }}
+                  style={{ background: C.teal, border: "none", borderRadius: 8, padding: "7px 14px", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+                  Confirmer
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* ══ ONGLET TARIFS ══ */}
+        {sidebarTab === "tarifs" && (
+          <div>
+            <h2 style={{ fontSize: 20, fontWeight: 800, color: C.text, margin: "0 0 20px" }}>Tarifs & Horaires</h2>
+            {[
+              { label: "Consultation générale", prix: "2 500 FCFA" },
+              { label: "Consultation spécialisée", prix: "5 000 FCFA" },
+              { label: "Téléconsultation", prix: "3 500 FCFA" },
+              { label: "CPN (gratuit)", prix: "Gratuit" },
+            ].map(t => (
+              <div key={t.label} style={{ background: C.card, borderRadius: 10, padding: "12px 16px", marginBottom: 8, display: "flex", justifyContent: "space-between", alignItems: "center", boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}>
+                <span style={{ fontSize: 13, color: C.text }}>{t.label}</span>
+                <span style={{ fontWeight: 800, fontSize: 14, color: t.prix === "Gratuit" ? C.green : C.text }}>{t.prix}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* ══ ONGLET ÉQUIPE ══ */}
+        {sidebarTab === "equipe" && (
+          <div>
+            <h2 style={{ fontSize: 20, fontWeight: 800, color: C.text, margin: "0 0 20px" }}>Équipe</h2>
+            {[
+              { initials: "BN", name: "Dr. Béatrice Nzapa", role: "Médecin généraliste", statut: "En ligne" },
+              { initials: "JK", name: "Dr. Jean-Paul Koyt", role: "Pédiatre", statut: "En consultation" },
+              { initials: "IF", name: "Infirmière Félicité", role: "Infirmière en chef", statut: "En ligne" },
+            ].map(m => (
+              <div key={m.name} style={{ background: C.card, borderRadius: 10, padding: "12px 16px", marginBottom: 8, display: "flex", gap: 12, alignItems: "center", boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}>
+                <div style={{ width: 40, height: 40, borderRadius: "50%", background: C.teal, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 800, fontSize: 14 }}>{m.initials}</div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 700, fontSize: 14, color: C.text }}>{m.name}</div>
+                  <div style={{ fontSize: 12, color: C.muted }}>{m.role}</div>
+                </div>
+                <span style={{ background: m.statut === "En ligne" ? "#D1FAE5" : "#DBEAFE", color: m.statut === "En ligne" ? "#065F46" : "#1E3A8A", fontSize: 11, fontWeight: 600, borderRadius: 8, padding: "3px 10px" }}>{m.statut}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* ══ ONGLET AVIS ══ */}
+        {sidebarTab === "avis" && (
+          <div>
+            <h2 style={{ fontSize: 20, fontWeight: 800, color: C.text, margin: "0 0 8px" }}>Avis patients</h2>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20 }}>
+              <span style={{ fontSize: 36, fontWeight: 800, color: C.text }}>4,8</span>
+              <div>
+                <div style={{ color: "#D97706", fontSize: 18 }}>★★★★★</div>
+                <div style={{ fontSize: 12, color: C.muted }}>214 avis vérifiés</div>
+              </div>
+            </div>
+            {[
+              { name: "Marcel N.", note: 5, msg: "Excellente consultation, médecin très attentionnée.", date: "28 juin" },
+              { name: "Aïcha D.", note: 5, msg: "Suivi prénatal impeccable. Je recommande vivement.", date: "25 juin" },
+              { name: "Prosper K.", note: 4, msg: "Attente raisonnable, diagnostic précis.", date: "22 juin" },
+            ].map(a => (
+              <div key={a.name} style={{ background: C.card, borderRadius: 10, padding: "14px 16px", marginBottom: 10, boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                  <span style={{ fontWeight: 700, fontSize: 13, color: C.text }}>{a.name}</span>
+                  <span style={{ fontSize: 11, color: C.muted }}>{a.date}</span>
+                </div>
+                <div style={{ color: "#D97706", fontSize: 14, marginBottom: 6 }}>{"★".repeat(a.note)}{"☆".repeat(5 - a.note)}</div>
+                <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.5 }}>{a.msg}</div>
+              </div>
+            ))}
           </div>
         )}
       </div>

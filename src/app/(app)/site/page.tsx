@@ -39,6 +39,9 @@ export default function SitePage() {
   const [isMobileView, setIsMobileView] = useState(false);
   const [searchVal, setSearchVal] = useState("");
   const [locationVal, setLocationVal] = useState("");
+  const [siteScreen, setSiteScreen] = useState<"landing" | "search">("landing");
+  const [filterDispo, setFilterDispo] = useState("semaine");
+  const [filterType, setFilterType] = useState("presentiel");
 
   useEffect(() => {
     const h = () => setIsMobileView(window.innerWidth < 768);
@@ -81,6 +84,153 @@ export default function SitePage() {
     outline: "none", background: "#fff", color: "#0F1F24", fontFamily: "inherit", boxSizing: "border-box",
   };
 
+  // ── Search results view ──────────────────────────────────────────────────
+  if (siteScreen === "search") {
+    const filteredDocs = doctors.filter(d => {
+      if (filterType === "teleconsult" && !d.teleconsult) return false;
+      if (!searchVal) return true;
+      return d.name.toLowerCase().includes(searchVal.toLowerCase()) ||
+        d.specialty.toLowerCase().includes(searchVal.toLowerCase());
+    });
+
+    return (
+      <div style={{ background: "#F4F7F6", minHeight: "calc(100vh - 52px)" }}>
+        <div style={{ maxWidth: 1100, margin: "0 auto", padding: "0 20px" }}>
+          {/* Back button */}
+          <div style={{ padding: "18px 0 10px" }}>
+            <button onClick={() => setSiteScreen("landing")}
+              style={{ background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 6, color: "#0E7C7B", fontWeight: 700, fontSize: 14, fontFamily: "inherit" }}>
+              <span className="material-symbols-rounded" style={{ fontSize: 20 }}>arrow_back</span>
+              Accueil
+            </button>
+          </div>
+
+          <div style={{ display: "flex", gap: 24, alignItems: "flex-start" }}>
+            {/* Left sidebar — filters */}
+            {!isMobileView && (
+              <div style={{ width: 220, flexShrink: 0, background: "#fff", borderRadius: 16, padding: "20px", boxShadow: "0 2px 8px rgba(0,0,0,0.06)", border: "1px solid #E2EAE8" }}>
+                <div style={{ fontWeight: 800, fontSize: 14, color: "#0F1F24", marginBottom: 16 }}>Filtres</div>
+
+                <div style={{ fontWeight: 700, fontSize: 12, color: "#6B7B80", marginBottom: 10 }}>Disponibilité</div>
+                {[
+                  ["aujourd", "Aujourd'hui"],
+                  ["semaine", "Cette semaine"],
+                  ["teleconsult", "Téléconsultation"],
+                  ["gratuit", "Gratuités (CPN, ASC)"],
+                ].map(([id, label]) => (
+                  <label key={id} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, cursor: "pointer" }}>
+                    <div onClick={() => setFilterDispo(filterDispo === id ? "" : id)}
+                      style={{ width: 18, height: 18, borderRadius: 4, border: `2px solid ${filterDispo === id ? "#0E7C7B" : "#E2EAE8"}`, background: filterDispo === id ? "#0E7C7B" : "#fff", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                      {filterDispo === id && <span className="material-symbols-rounded" style={{ fontSize: 13, color: "#fff" }}>check</span>}
+                    </div>
+                    <span style={{ fontSize: 12, color: "#46565B" }}>{label}</span>
+                  </label>
+                ))}
+
+                <div style={{ fontWeight: 700, fontSize: 12, color: "#6B7B80", marginBottom: 10, marginTop: 16 }}>Type</div>
+                {[
+                  ["presentiel", "Présentiel"],
+                  ["teleconsult2", "Téléconsult"],
+                ].map(([id, label]) => (
+                  <label key={id} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, cursor: "pointer" }}>
+                    <div onClick={() => setFilterType(filterType === id ? "" : id)}
+                      style={{ width: 18, height: 18, borderRadius: 4, border: `2px solid ${filterType === id ? "#0E7C7B" : "#E2EAE8"}`, background: filterType === id ? "#0E7C7B" : "#fff", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                      {filterType === id && <span className="material-symbols-rounded" style={{ fontSize: 13, color: "#fff" }}>check</span>}
+                    </div>
+                    <span style={{ fontSize: 12, color: "#46565B" }}>{label}</span>
+                  </label>
+                ))}
+              </div>
+            )}
+
+            {/* Right — doctor list */}
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: 800, fontSize: 18, color: "#0F1F24", marginBottom: 16 }}>
+                {filteredDocs.length} praticiens · Bangui
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                {filteredDocs.map(d => (
+                  <div key={d.id}
+                    onMouseEnter={() => setHovCard(d.id)} onMouseLeave={() => setHovCard(null)}
+                    style={{ background: "#fff", borderRadius: 16, padding: "16px 20px", boxShadow: hovCard === d.id ? "0 8px 24px rgba(0,0,0,0.1)" : "0 2px 8px rgba(0,0,0,0.06)", border: "1px solid #E2EAE8", display: "flex", gap: 14, alignItems: "center" }}>
+                    <div style={{ width: 52, height: 52, borderRadius: "50%", background: "#0E7C7B", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 800, fontSize: 18, flexShrink: 0 }}>{d.initials}</div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 5, flexWrap: "wrap" }}>
+                        <span style={{ fontWeight: 800, fontSize: 15, color: "#0F1F24" }}>{d.name}</span>
+                        {d.verified && <span className="material-symbols-rounded" style={{ fontSize: 15, color: "#0E7C7B" }}>verified</span>}
+                        {d.teleconsult && <span style={{ background: "#EEF4FF", color: "#2563EB", fontSize: 10, fontWeight: 700, borderRadius: 5, padding: "2px 7px" }}>Téléconsult</span>}
+                      </div>
+                      <div style={{ fontSize: 12, color: "#6B7B80", marginTop: 2 }}>{d.specialty} · {d.location}</div>
+                      <div style={{ display: "flex", gap: 10, marginTop: 4, flexWrap: "wrap" }}>
+                        <span style={{ fontSize: 12, color: "#D97706" }}>★ {d.rating} <span style={{ color: "#8AA4A8" }}>({d.reviews})</span></span>
+                        <span style={{ fontSize: 12, color: "#8AA4A8" }}>{d.distance}</span>
+                        <span style={{ fontSize: 12, fontWeight: 700, color: d.price.startsWith("Gratuit") ? "#059669" : "#0F1F24" }}>{d.price}</span>
+                      </div>
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8, flexShrink: 0 }}>
+                      <div style={{ fontSize: 12, color: "#6B7B80", textAlign: "right" }}>
+                        Prochain créneau<br />
+                        <strong style={{ color: "#0E7C7B" }}>{d.dispo || "Auj."}</strong>
+                      </div>
+                      <button onClick={() => { setSelectedDoctor(d.id); setModal("bookingModal"); }}
+                        onMouseEnter={() => setHovBtn(d.id)} onMouseLeave={() => setHovBtn(null)}
+                        style={{ background: hovBtn === d.id ? "#0A6060" : "#0E7C7B", border: "none", borderRadius: 10, padding: "9px 18px", color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" }}>
+                        Prendre RDV
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Booking modal */}
+        {modal === "bookingModal" && selectedDoc && (
+          <div onClick={() => setModal(null)} style={{ position: "fixed", inset: 0, background: "rgba(12,26,30,0.75)", zIndex: 500, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+            <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 20, width: "100%", maxWidth: 480, maxHeight: "90vh", overflow: "auto", boxShadow: "0 20px 60px rgba(0,0,0,0.4)" }}>
+              <div style={{ background: "#0C1A1E", padding: "20px", borderRadius: "20px 20px 0 0", position: "sticky", top: 0 }}>
+                <button onClick={() => setModal(null)} style={{ position: "absolute", top: 14, right: 14, background: "rgba(255,255,255,0.1)", border: "none", borderRadius: 8, padding: "4px 8px", cursor: "pointer" }}>
+                  <span className="material-symbols-rounded" style={{ fontSize: 18, color: "#fff" }}>close</span>
+                </button>
+                <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+                  <div style={{ width: 52, height: 52, borderRadius: "50%", background: "#0E7C7B", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 800, fontSize: 18 }}>{selectedDoc.initials}</div>
+                  <div>
+                    <div style={{ color: "#fff", fontWeight: 800, fontSize: 15 }}>{selectedDoc.name}</div>
+                    <div style={{ color: "#8AA4A8", fontSize: 12 }}>{selectedDoc.specialty} · {selectedDoc.location}</div>
+                    <div style={{ color: "#D97706", fontSize: 12, marginTop: 2 }}>★ {selectedDoc.rating} · <span style={{ color: selectedDoc.price.startsWith("Gratuit") ? "#1F8A5B" : "#fff", fontWeight: 700 }}>{selectedDoc.price}</span></div>
+                  </div>
+                </div>
+              </div>
+              <div style={{ padding: "18px 20px", display: "flex", flexDirection: "column", gap: 14 }}>
+                <div>
+                  <label style={{ fontSize: 12, fontWeight: 700, color: "#46565B", display: "block", marginBottom: 8 }}>Créneau disponible</label>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                    {(selectedDoc.availableSlots || []).map(slot => (
+                      <button key={slot} onClick={() => setSelectedSlot(slot)}
+                        style={{ background: selectedSlot === slot ? "#0E7C7B" : "#F6F8F7", border: `1.5px solid ${selectedSlot === slot ? "#0E7C7B" : "#E2EAE8"}`, borderRadius: 8, padding: "7px 14px", cursor: "pointer", color: selectedSlot === slot ? "#fff" : "#0F1F24", fontWeight: 600, fontSize: 13, fontFamily: "inherit" }}>
+                        {slot}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <label style={{ fontSize: 12, fontWeight: 700, color: "#46565B", display: "block", marginBottom: 6 }}>Motif (optionnel)</label>
+                  <input value={motif} onChange={e => setMotif(e.target.value)} placeholder="Ex : fièvre, contrôle annuel..."
+                    style={{ border: "1.5px solid #E2EAE8", borderRadius: 10, padding: "11px 14px", fontSize: 14, outline: "none", background: "#fff", color: "#0F1F24", fontFamily: "inherit", boxSizing: "border-box", width: "100%" }} />
+                </div>
+                <div style={{ display: "flex", gap: 10 }}>
+                  <button onClick={() => setModal(null)} style={{ flex: 1, padding: "11px", borderRadius: 10, border: "1px solid #E2EAE8", background: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 600, color: "#6B7B80", fontFamily: "inherit" }}>Annuler</button>
+                  <button onClick={confirmBooking} style={{ flex: 2, padding: "11px", borderRadius: 10, border: "none", background: "#0E7C7B", cursor: "pointer", fontSize: 14, fontWeight: 700, color: "#fff", fontFamily: "inherit" }}>Confirmer le RDV</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div style={{ background: "#F4F7F6", minHeight: "calc(100vh - 52px)" }}>
 
@@ -108,7 +258,7 @@ export default function SitePage() {
               <span className="material-symbols-rounded" style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", fontSize: 18, color: "#8AA4A8" }}>location_on</span>
               <input value={locationVal} onChange={e => setLocationVal(e.target.value)} placeholder="Bangui, Bambari..." style={{ ...inp, width: "100%", paddingLeft: 38 }} />
             </div>
-            <button onClick={() => showToast("Recherche en cours...")}
+            <button onClick={() => setSiteScreen("search")}
               onMouseEnter={() => setHovBtn("search")} onMouseLeave={() => setHovBtn(null)}
               style={{ background: hovBtn === "search" ? "#0A6060" : "#0E7C7B", border: "none", borderRadius: 10, padding: "11px 22px", color: "#fff", fontWeight: 700, fontSize: 14, cursor: "pointer", whiteSpace: "nowrap", fontFamily: "inherit" }}>
               Rechercher
@@ -138,7 +288,7 @@ export default function SitePage() {
           <div style={{ display: "grid", gridTemplateColumns: isMobileView ? "repeat(4, 1fr)" : "repeat(8, 1fr)", gap: 12 }}>
             {SPECIALTIES.map(s => (
               <button key={s.label}
-                onClick={() => { setSelectedSpecialty(s.label); showToast(`Spécialité : ${s.label}`); }}
+                onClick={() => { setSelectedSpecialty(s.label); setSiteScreen("search"); }}
                 onMouseEnter={() => setHovSpec(s.label)} onMouseLeave={() => setHovSpec(null)}
                 style={{ background: "#fff", border: "1.5px solid #E2EAE8", borderRadius: 14, padding: "16px 8px", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 8, transform: hovSpec === s.label ? "translateY(-3px)" : "none", boxShadow: hovSpec === s.label ? "0 8px 24px rgba(0,0,0,0.1)" : "0 1px 4px rgba(0,0,0,0.05)", transition: "all 0.15s", fontFamily: "inherit" }}>
                 <div style={{ width: 44, height: 44, borderRadius: "50%", background: `${s.color}15`, display: "flex", alignItems: "center", justifyContent: "center" }}>

@@ -24,6 +24,8 @@ export interface Doctor {
   phone?: string;
   bio?: string;
   availableSlots?: string[];
+  dispo?: string;
+  languages?: string;
 }
 
 export interface Appointment {
@@ -76,47 +78,53 @@ const initialDoctors: Doctor[] = [
     distance: "1,2 km", price: "2 500 FCFA", verified: true, teleconsult: false,
     phone: "+236 75 00 01 01",
     bio: "Médecin généraliste avec 12 ans d'expérience à Bangui. Spécialisée en médecine tropicale et pédiatrie.",
-    availableSlots: ["09:00", "10:00", "11:00", "14:00", "15:00", "16:00"],
+    availableSlots: ["08:00", "08:30", "09:00", "11:00", "14:30", "16:00"],
+    dispo: "Auj. 14:30", languages: "FR · Sango",
   },
   {
     id: "D002", initials: "JK", name: "Dr. Jean-Paul Koyt", specialty: "Pédiatre",
-    location: "Hôpital Communautaire", city: "Bangui", rating: 4.6, reviews: 98,
+    location: "Hôpital Communautaire", city: "Bangui", rating: 4.6, reviews: 167,
     distance: "3,4 km", price: "3 000 FCFA", verified: true, teleconsult: true,
     phone: "+236 75 00 02 02",
     bio: "Pédiatre expérimenté, suivi de l'enfant de 0 à 15 ans. Consultation présentielle et téléconsultation.",
-    availableSlots: ["08:30", "09:30", "14:30", "15:30"],
+    availableSlots: ["08:00", "08:30", "09:00", "11:00", "14:30", "16:00"],
+    dispo: "Demain 09:00", languages: "FR",
   },
   {
     id: "D003", initials: "PS", name: "Pauline Sérémadé", specialty: "Sage-femme",
-    location: "Maternité Castors", city: "Bangui", rating: 4.9, reviews: 203,
+    location: "Maternité Castors", city: "Bangui", rating: 4.9, reviews: 302,
     distance: "0,8 km", price: "Gratuit (CPN)", verified: true, teleconsult: false,
     phone: "+236 75 00 03 03",
     bio: "Sage-femme certifiée. Consultations prénatales, accouchements, suivi post-natal et planification familiale.",
-    availableSlots: ["08:00", "09:00", "10:00", "11:00"],
+    availableSlots: ["08:00", "08:30", "09:00", "11:00", "14:30", "16:00"],
+    dispo: "Auj. 11:00", languages: "FR · Sango",
   },
   {
     id: "D004", initials: "AG", name: "Dr. Alphonse Gbékou", specialty: "Cardiologue",
-    location: "CHU de Bangui", city: "Bangui", rating: 4.7, reviews: 76,
+    location: "CHU de Bangui", city: "Bangui", rating: 4.7, reviews: 98,
     distance: "Téléconsultation", price: "5 000 FCFA", verified: true, teleconsult: true,
     phone: "+236 75 00 04 04",
     bio: "Cardiologue au CHU de Bangui. Spécialisé en HTA et insuffisance cardiaque.",
-    availableSlots: ["10:00", "11:00", "15:00", "16:00"],
+    availableSlots: ["08:00", "08:30", "09:00", "11:00", "14:30", "16:00"],
+    dispo: "Jeu. 16:00", languages: "FR",
   },
   {
     id: "D005", initials: "PY", name: "Pierre Yangba", specialty: "Agent (ASC)",
-    location: "Village Boyali", city: "Boyali", rating: 4.5, reviews: 34,
+    location: "Village Boyali", city: "Boyali", rating: 4.5, reviews: 41,
     distance: "Sur place", price: "Gratuit", verified: true, teleconsult: false,
     phone: "+236 75 00 05 05",
     bio: "Agent de santé communautaire formé par le Ministère de la Santé. Dépistage paludisme, vaccination.",
-    availableSlots: ["08:00", "09:00", "10:00", "14:00"],
+    availableSlots: ["08:00", "08:30", "09:00", "11:00", "14:30", "16:00"],
+    dispo: "Aujourd'hui", languages: "Sango · FR",
   },
   {
     id: "D006", initials: "MS", name: "Dr. Marie Sata", specialty: "Dermatologue",
-    location: "Téléconsultation", city: "Bangui", rating: 4.4, reviews: 51,
+    location: "Téléconsultation", city: "Bangui", rating: 4.4, reviews: 23,
     distance: "Téléconsultation", price: "4 000 FCFA", verified: false, teleconsult: true,
     phone: "+236 75 00 06 06",
     bio: "Dermatologue disponible en téléconsultation. Dermatoses tropicales, mycoses, eczéma.",
-    availableSlots: ["09:00", "10:00", "14:00", "15:00", "16:00"],
+    availableSlots: ["08:00", "08:30", "09:00", "11:00", "14:30", "16:00"],
+    dispo: "Ven. 10:30", languages: "FR",
   },
 ];
 
