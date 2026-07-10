@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { verifyToken, COOKIE_NAME } from "@/lib/auth";
 
 // Routes qui nécessitent un rôle spécifique
-const ROLE_ROUTES: Record<string, "patient" | "personnel"> = {
-  "/patient":  "patient",
+const ROLE_ROUTES: Record<string, "personnel"> = {
   "/clinique": "personnel",
 };
 
@@ -41,9 +40,8 @@ export async function middleware(req: NextRequest) {
   // Vérification du rôle pour les routes protégées
   const requiredRole = ROLE_ROUTES[pathname];
   if (requiredRole && payload.role !== requiredRole) {
-    // Mauvais rôle → redirection vers la bonne section
-    const fallback = payload.role === "personnel" ? "/clinique" : "/patient";
-    return NextResponse.redirect(new URL(fallback, req.url));
+    // Mauvais rôle (ex: patient tente /clinique) → retour accueil
+    return NextResponse.redirect(new URL("/", req.url));
   }
 
   return NextResponse.next();

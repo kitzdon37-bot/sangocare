@@ -15,7 +15,7 @@ const ROLES: { id: UserRole; icon: string; label: string; sub: string; color: st
     sub: "Prendre un rendez-vous, consulter…",
     color: "#0E7C7B",
     defaultName: "Marie Koïdé",
-    href: "/patient",
+    href: "/",
   },
   {
     id: "personnel",
