@@ -5,7 +5,7 @@ import { useAppStore } from "@/store/appStore";
 import type { ActiveView, NetworkMode, UserRole } from "@/store/appStore";
 
 const NAV_ITEMS: { view: ActiveView; icon: string; label: string; href: string; roles: UserRole[] }[] = [
-  { view: "site",     icon: "language",    label: "Accueil",    href: "/",         roles: ["patient", "personnel"] },
+  { view: "site",     icon: "language",    label: "Accueil",    href: "/",         roles: ["patient"] },
   { view: "clinique", icon: "stethoscope", label: "Espace pro", href: "/clinique", roles: ["personnel"] },
 ];
 
