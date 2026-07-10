@@ -217,6 +217,8 @@ interface AppState {
   toggleSyncItem: (id: string) => void;
   addCalendarEvent: (e: CalendarEvent) => void;
   updateCalendarEvent: (id: string, statut: AppointmentStatut) => void;
+  updatePatient: (id: string, updates: Partial<Omit<PatientRecord, "id">>) => void;
+  updateCalendarEventFull: (id: string, updates: Partial<Omit<CalendarEvent, "id">>) => void;
 }
 
 export const useAppStore = create<AppState>()(
@@ -257,7 +259,33 @@ export const useAppStore = create<AppState>()(
         set({ toast: { message: msg, visible: true } });
         setTimeout(() => set({ toast: { message: "", visible: false } }), 3000);
       },
-      addAppointment: (a) => set((s) => ({ appointments: [a, ...s.appointments] })),
+      addAppointment: (a) => set((s) => {
+        const calEvent: CalendarEvent = {
+          id: "CAL-" + a.id,
+          patientName: a.patientName,
+          motif: a.motif || "",
+          heure: a.heure,
+          date: a.date,
+          duree: 30,
+          type: a.type,
+          statut: a.statut,
+        };
+        const alreadyExists = s.patients.some(p => p.telephone === a.patientPhone);
+        const newPatient: PatientRecord | null = alreadyExists ? null : {
+          id: "P" + String(s.patients.length + 1).padStart(3, "0"),
+          nom: a.patientName,
+          telephone: a.patientPhone,
+          age: 0,
+          village: "",
+          lastVisit: a.date,
+          statut: "Actif",
+        };
+        return {
+          appointments: [a, ...s.appointments],
+          calendarEvents: [calEvent, ...s.calendarEvents],
+          patients: newPatient ? [newPatient, ...s.patients] : s.patients,
+        };
+      }),
       updateAppointmentStatut: (id, statut) => set((s) => ({
         appointments: s.appointments.map((a) => a.id === id ? { ...a, statut } : a),
       })),
@@ -270,6 +298,12 @@ export const useAppStore = create<AppState>()(
       addCalendarEvent: (e) => set((s) => ({ calendarEvents: [e, ...s.calendarEvents] })),
       updateCalendarEvent: (id, statut) => set((s) => ({
         calendarEvents: s.calendarEvents.map((e) => e.id === id ? { ...e, statut } : e),
+      })),
+      updatePatient: (id, updates) => set((s) => ({
+        patients: s.patients.map(p => p.id === id ? { ...p, ...updates } : p),
+      })),
+      updateCalendarEventFull: (id, updates) => set((s) => ({
+        calendarEvents: s.calendarEvents.map(e => e.id === id ? { ...e, ...updates } : e),
       })),
     }),
     { name: "sangocare-store-v2" }

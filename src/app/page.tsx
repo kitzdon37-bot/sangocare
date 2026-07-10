@@ -4,6 +4,8 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useAppStore } from "@/store/appStore";
 import type { Appointment } from "@/store/appStore";
+import ChatWindow from "@/components/ChatWindow";
+import { getOrCreateConversation, type Conversation } from "@/lib/supabase";
 
 const MapCentrafrique = dynamic(() => import("@/components/MapCentrafrique"), { ssr: false });
 
@@ -27,6 +29,7 @@ const QUICK_ACCESS = [
   { label: "Mes RDV", icon: "event_note", color: "#0E7C7B", screen: "rdv" as const },
   { label: "Ma famille", icon: "family_restroom", color: "#DB2777", screen: "famille" as const },
   { label: "Don de sang", icon: "bloodtype", color: "#DC2626", screen: "don" as const },
+  { label: "Messagerie", icon: "chat", color: "#7C3AED", screen: "messagerie" as const },
   { label: "Mobile Money", icon: "account_balance_wallet", color: "#059669", screen: null, toast: "Mobile Money — bientôt disponible" },
   { label: "Paramètres", icon: "settings", color: "#6B7B80", screen: null, toast: "" },
 ] as const;
@@ -44,14 +47,14 @@ const MODES = [
   { icon: "signal_cellular_alt", title: "USSD *123#", desc: "Sans smartphone, sans internet, en Sango", color: "#D97706" },
 ];
 
-const DAYS = [
-  { label: "Mar", num: "2" },
-  { label: "Mer", num: "3" },
-  { label: "Jeu", num: "4" },
-  { label: "Ven", num: "5" },
-  { label: "Sam", num: "6" },
-];
-const SLOTS = ["08:00", "08:30", "09:00", "11:00", "14:30", "16:00"];
+const SLOTS = ["08:00", "08:30", "09:00", "09:30", "10:00", "10:30", "11:00", "14:00", "14:30", "15:00", "15:30", "16:00", "16:30"];
+
+/** Formate un numéro de téléphone pour WhatsApp (supprime tout sauf les chiffres) */
+function toWhatsApp(phone: string | undefined, message?: string): string {
+  const digits = (phone || "").replace(/\D/g, "");
+  const base = `https://wa.me/${digits}`;
+  return message ? `${base}?text=${encodeURIComponent(message)}` : base;
+}
 
 const PHARMACIES = [
   { name: "Pharmacie Centrale", address: "Av. Boganda, Bangui", phone: "+236 75 10 10 10", status: "Ouverte jusqu'à 22h", open: true },
@@ -83,10 +86,11 @@ type SiteScreen =
   | "rdv"
   | "teleconsult"
   | "famille"
-  | "don";
+  | "don"
+  | "messagerie";
 
 export default function SitePage() {
-  const { doctors, appointments, modal, setModal, selectedDoctorId, setSelectedDoctor, setSelectedSpecialty, addAppointment, userName, showToast } = useAppStore();
+  const { doctors, appointments, modal, setModal, selectedDoctorId, setSelectedDoctor, setSelectedSpecialty, addAppointment, userName, userPhone, showToast, toast } = useAppStore();
 
   const [hovCard, setHovCard] = useState<string | null>(null);
   const [hovSpec, setHovSpec] = useState<string | null>(null);
@@ -100,11 +104,20 @@ export default function SitePage() {
   const [filterDispo, setFilterDispo] = useState("semaine");
   const [filterType, setFilterType] = useState("presentiel");
 
+  // Messagerie
+  const [patientConv, setPatientConv] = useState<Conversation | null>(null);
+  const [convLoading, setConvLoading] = useState(false);
+
   // Booking flow state
   const [bookingStep, setBookingStep] = useState<BookingStep>("doctor");
   const [payMethod, setPayMethod] = useState<PayMethod>("orange");
-  const [selectedDay, setSelectedDay] = useState(0);
   const [specialtyFilter, setSpecialtyFilter] = useState<string | null>(null);
+
+  // Booking calendar state
+  const [bookCalMonth, setBookCalMonth] = useState(new Date().getMonth());
+  const [bookCalYear, setBookCalYear] = useState(new Date().getFullYear());
+  const [bookSelectedDate, setBookSelectedDate] = useState<string | null>(null);
+  const [bookPickerMode, setBookPickerMode] = useState<"calendar" | "month" | "year">("calendar");
 
   // RDV tabs + calendrier
   const [rdvTab, setRdvTab] = useState<"avenir" | "passes">("avenir");
@@ -143,6 +156,16 @@ export default function SitePage() {
       window.scrollTo({ top: 0, behavior: "instant" as ScrollBehavior });
     }
   }, [siteScreen]);
+
+  // Ouvrir la conversation patient quand on navigue vers la messagerie
+  useEffect(() => {
+    if (siteScreen !== "messagerie" || patientConv || convLoading) return;
+    setConvLoading(true);
+    getOrCreateConversation(userPhone, userName).then((conv) => {
+      setPatientConv(conv);
+      setConvLoading(false);
+    });
+  }, [siteScreen, patientConv, convLoading, userPhone, userName]);
 
   // Search suggestions
   const [searchFocused, setSearchFocused] = useState(false);
@@ -184,6 +207,7 @@ export default function SitePage() {
 
   const confirmBooking = () => {
     if (!selectedDoc || !selectedSlot) { showToast("Choisissez un créneau"); return; }
+    if (!bookSelectedDate) { showToast("Choisissez une date"); return; }
     const rdv: Appointment = {
       id: genId(),
       patientName: userName,
@@ -191,7 +215,7 @@ export default function SitePage() {
       doctorId: selectedDoc.id,
       doctorName: selectedDoc.name,
       specialty: selectedDoc.specialty,
-      date: `2026-07-0${DAYS[selectedDay].num}`,
+      date: bookSelectedDate,
       heure: selectedSlot,
       type: selectedDoc.teleconsult ? "Téléconsultation" : "Présentiel",
       statut: "En attente",
@@ -206,7 +230,10 @@ export default function SitePage() {
     setSelectedDoctor(docId);
     setBookingStep("doctor");
     setSelectedSlot(null);
-    setSelectedDay(0);
+    setBookSelectedDate(null);
+    setBookCalMonth(new Date().getMonth());
+    setBookCalYear(new Date().getFullYear());
+    setBookPickerMode("calendar");
     setModal("bookingModal");
   };
 
@@ -249,16 +276,114 @@ export default function SitePage() {
             <DarkHeader onClose={() => setModal(null)} />
             <div style={{ padding: "18px 20px", display: "flex", flexDirection: "column", gap: 14 }}>
               <div>
-                <label style={{ fontSize: 12, fontWeight: 700, color: "#46565B", display: "block", marginBottom: 8 }}>Choisir un jour</label>
-                <div style={{ display: "flex", gap: 6 }}>
-                  {DAYS.map((d, i) => (
-                    <button key={d.num} onClick={() => { setSelectedDay(i); setSelectedSlot(null); }}
-                      style={{ flex: 1, background: selectedDay === i ? "#0E7C7B" : "#F6F8F7", border: "none", borderRadius: 10, padding: "7px 4px", cursor: "pointer", textAlign: "center", fontFamily: "inherit" }}>
-                      <div style={{ fontSize: 9, color: selectedDay === i ? "rgba(255,255,255,0.7)" : "#8AA4A8", fontWeight: 600 }}>{d.label}</div>
-                      <div style={{ fontSize: 15, fontWeight: 800, color: selectedDay === i ? "#fff" : "#0F1F24", marginTop: 2 }}>{d.num}</div>
+                <label style={{ fontSize: 12, fontWeight: 700, color: "#46565B", display: "block", marginBottom: 8 }}>Choisir une date</label>
+                {/* Calendar container */}
+                <div style={{ border: "1.5px solid #E2EAE8", borderRadius: 14, overflow: "hidden", marginBottom: 8 }}>
+                  {/* ── Header strip ── */}
+                  <div style={{ background: "#0E7C7B", padding: "10px 12px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                    <button onClick={() => {
+                      if (bookPickerMode !== "calendar") { setBookPickerMode("calendar"); return; }
+                      if (bookCalMonth === 0) { setBookCalMonth(11); setBookCalYear(y => y - 1); }
+                      else setBookCalMonth(m => m - 1);
+                    }} style={{ background: "rgba(255,255,255,0.2)", border: "none", borderRadius: 6, padding: "4px 8px", cursor: "pointer" }}>
+                      <span className="material-symbols-rounded" style={{ fontSize: 16, color: "#fff" }}>{bookPickerMode !== "calendar" ? "close" : "chevron_left"}</span>
                     </button>
-                  ))}
+                    <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                      {/* Clickable month */}
+                      <button onClick={() => setBookPickerMode(m => m === "month" ? "calendar" : "month")}
+                        style={{ background: bookPickerMode === "month" ? "rgba(255,255,255,0.3)" : "rgba(255,255,255,0.15)", border: "none", borderRadius: 6, padding: "5px 12px", cursor: "pointer", color: "#fff", fontWeight: 800, fontSize: 13, fontFamily: "inherit", display: "flex", alignItems: "center", gap: 4 }}>
+                        {["Janvier","Février","Mars","Avril","Mai","Juin","Juillet","Août","Septembre","Octobre","Novembre","Décembre"][bookCalMonth]}
+                        <span className="material-symbols-rounded" style={{ fontSize: 14 }}>expand_more</span>
+                      </button>
+                      {/* Clickable year */}
+                      <button onClick={() => setBookPickerMode(m => m === "year" ? "calendar" : "year")}
+                        style={{ background: bookPickerMode === "year" ? "rgba(255,255,255,0.3)" : "rgba(255,255,255,0.15)", border: "none", borderRadius: 6, padding: "5px 12px", cursor: "pointer", color: "#fff", fontWeight: 800, fontSize: 13, fontFamily: "inherit", display: "flex", alignItems: "center", gap: 4 }}>
+                        {bookCalYear}
+                        <span className="material-symbols-rounded" style={{ fontSize: 14 }}>expand_more</span>
+                      </button>
+                    </div>
+                    <button onClick={() => {
+                      if (bookPickerMode !== "calendar") { setBookPickerMode("calendar"); return; }
+                      if (bookCalMonth === 11) { setBookCalMonth(0); setBookCalYear(y => y + 1); }
+                      else setBookCalMonth(m => m + 1);
+                    }} style={{ background: "rgba(255,255,255,0.2)", border: "none", borderRadius: 6, padding: "4px 8px", cursor: "pointer" }}>
+                      <span className="material-symbols-rounded" style={{ fontSize: 16, color: "#fff" }}>{bookPickerMode !== "calendar" ? "check" : "chevron_right"}</span>
+                    </button>
+                  </div>
+
+                  {/* ── Body (white) ── */}
+                  <div style={{ background: "#fff", padding: "10px 12px" }}>
+                    {/* Month picker */}
+                    {bookPickerMode === "month" && (
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 6 }}>
+                        {["Jan","Fév","Mar","Avr","Mai","Juin","Juil","Août","Sep","Oct","Nov","Déc"].map((m, i) => (
+                          <button key={i} onClick={() => { setBookCalMonth(i); setBookPickerMode("calendar"); }}
+                            style={{ background: bookCalMonth === i ? "#0E7C7B" : "#F6F8F7", border: `1.5px solid ${bookCalMonth === i ? "#0E7C7B" : "#E2EAE8"}`, borderRadius: 8, padding: "9px 4px", cursor: "pointer", color: bookCalMonth === i ? "#fff" : "#0F1F24", fontSize: 12, fontWeight: bookCalMonth === i ? 800 : 500, fontFamily: "inherit" }}>
+                            {m}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Year picker */}
+                    {bookPickerMode === "year" && (
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 6, maxHeight: 160, overflowY: "auto" }}>
+                        {Array.from({ length: 10 }, (_, i) => new Date().getFullYear() + i).map(yr => (
+                          <button key={yr} onClick={() => { setBookCalYear(yr); setBookPickerMode("calendar"); }}
+                            style={{ background: bookCalYear === yr ? "#0E7C7B" : "#F6F8F7", border: `1.5px solid ${bookCalYear === yr ? "#0E7C7B" : "#E2EAE8"}`, borderRadius: 8, padding: "9px 4px", cursor: "pointer", color: bookCalYear === yr ? "#fff" : "#0F1F24", fontSize: 12, fontWeight: bookCalYear === yr ? 800 : 500, fontFamily: "inherit" }}>
+                            {yr}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Day grid */}
+                    {bookPickerMode === "calendar" && (
+                      <>
+                        <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 2, marginBottom: 4 }}>
+                          {["L","M","M","J","V","S","D"].map((d, i) => (
+                            <div key={i} style={{ textAlign: "center", fontSize: 10, fontWeight: 700, color: i >= 5 ? "#EF4444" : "#8AA4A8", padding: "2px 0" }}>{d}</div>
+                          ))}
+                        </div>
+                        {(() => {
+                          const today = new Date();
+                          today.setHours(0, 0, 0, 0);
+                          const daysInMonth = new Date(bookCalYear, bookCalMonth + 1, 0).getDate();
+                          const firstDow = (new Date(bookCalYear, bookCalMonth, 1).getDay() + 6) % 7;
+                          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                          const cells: any[] = [];
+                          for (let i = 0; i < firstDow; i++) cells.push(<div key={"e" + i} />);
+                          for (let d = 1; d <= daysInMonth; d++) {
+                            const dateStr = `${bookCalYear}-${String(bookCalMonth + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+                            const dayDate = new Date(bookCalYear, bookCalMonth, d);
+                            const isPast = dayDate < today;
+                            const isSelected = bookSelectedDate === dateStr;
+                            const isToday = dateStr === `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+                            const isWeekend = dayDate.getDay() === 0 || dayDate.getDay() === 6;
+                            cells.push(
+                              <button key={d} disabled={isPast} onClick={() => setBookSelectedDate(dateStr)}
+                                style={{
+                                  background: isSelected ? "#0E7C7B" : isToday ? "#E5F2F1" : "transparent",
+                                  border: isToday && !isSelected ? "1.5px solid #0E7C7B" : "1.5px solid transparent",
+                                  borderRadius: 7, padding: "6px 2px", cursor: isPast ? "not-allowed" : "pointer",
+                                  color: isPast ? "#C4D2D5" : isSelected ? "#fff" : isWeekend ? "#EF4444" : "#0F1F24",
+                                  fontSize: 12, fontWeight: isSelected || isToday ? 800 : 400, fontFamily: "inherit",
+                                }}>
+                                {d}
+                              </button>
+                            );
+                          }
+                          return <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 2 }}>{cells}</div>;
+                        })()}
+                      </>
+                    )}
+                  </div>
                 </div>
+                {bookSelectedDate && (
+                  <div style={{ fontSize: 12, color: "#0E7C7B", fontWeight: 700, textAlign: "center" }}>
+                    {new Date(bookSelectedDate + "T00:00:00").toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
+                  </div>
+                )}
               </div>
               <div>
                 <label style={{ fontSize: 12, fontWeight: 700, color: "#46565B", display: "block", marginBottom: 8 }}>Créneau disponible</label>
@@ -278,7 +403,7 @@ export default function SitePage() {
               </div>
               <div style={{ display: "flex", gap: 10 }}>
                 <button onClick={() => setModal(null)} style={{ flex: 1, padding: "11px", borderRadius: 10, border: "1px solid #E2EAE8", background: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 600, color: "#6B7B80", fontFamily: "inherit" }}>Annuler</button>
-                <button onClick={() => { if (!selectedSlot) { showToast("Choisissez un créneau"); return; } setBookingStep("payment"); }}
+                <button onClick={() => { if (!bookSelectedDate) { showToast("Choisissez une date"); return; } if (!selectedSlot) { showToast("Choisissez un créneau"); return; } setBookingStep("payment"); }}
                   style={{ flex: 2, padding: "11px", borderRadius: 10, border: "none", background: "#0E7C7B", cursor: "pointer", fontSize: 14, fontWeight: 700, color: "#fff", fontFamily: "inherit" }}>
                   Continuer →
                 </button>
@@ -304,7 +429,7 @@ export default function SitePage() {
                   </div>
                 </div>
                 {[
-                  { label: "Date", val: `${DAYS[selectedDay].label} ${DAYS[selectedDay].num} juil. · ${selectedSlot}` },
+                  { label: "Date", val: bookSelectedDate ? `${new Date(bookSelectedDate + "T00:00:00").toLocaleDateString("fr-FR", { weekday: "short", day: "numeric", month: "short" })} · ${selectedSlot}` : selectedSlot || "" },
                   { label: "Lieu", val: selectedDoc.teleconsult ? "Téléconsultation" : `${selectedDoc.location} · Bangui` },
                   { label: "Consultation", val: selectedDoc.price },
                 ].map(r => (
@@ -359,7 +484,7 @@ export default function SitePage() {
                 <div style={{ width: 36, height: 36, borderRadius: "50%", background: "#0E7C7B", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 800, fontSize: 14 }}>{selectedDoc.initials}</div>
                 <div style={{ textAlign: "left" }}>
                   <div style={{ fontWeight: 700, fontSize: 12, color: "#0F1F24" }}>{selectedDoc.name}</div>
-                  <div style={{ fontSize: 11, color: "#6B7B80" }}>{DAYS[selectedDay].label} {DAYS[selectedDay].num} juil. · {selectedSlot}</div>
+                  <div style={{ fontSize: 11, color: "#6B7B80" }}>{bookSelectedDate ? new Date(bookSelectedDate + "T00:00:00").toLocaleDateString("fr-FR", { weekday: "short", day: "numeric", month: "short", year: "numeric" }) : ""} · {selectedSlot}</div>
                 </div>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 6, background: "#E5F2F1", borderRadius: 8, padding: "6px 10px" }}>
@@ -367,8 +492,17 @@ export default function SitePage() {
                 <span style={{ fontSize: 11, color: "#0E7C7B", fontWeight: 600 }}>Rappel SMS programmé · 15 min avant</span>
               </div>
             </div>
+            {selectedDoc.teleconsult && selectedDoc.phone && (
+              <a
+                href={toWhatsApp(selectedDoc.phone, `Bonjour ${selectedDoc.name}, j'ai pris un rendez-vous de téléconsultation sur SangoCare pour le ${bookSelectedDate} à ${selectedSlot}. Merci de confirmer.`)}
+                target="_blank" rel="noreferrer"
+                style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, width: "100%", background: "#25D366", border: "none", borderRadius: 12, padding: "12px", color: "#fff", fontWeight: 700, fontSize: 14, textDecoration: "none" }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="#fff"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+                Confirmer via WhatsApp
+              </a>
+            )}
             <button onClick={() => { setModal(null); setBookingStep("doctor"); setSelectedSlot(null); }}
-              style={{ background: "#0E7C7B", border: "none", borderRadius: 12, padding: "12px 28px", color: "#fff", fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: "inherit" }}>
+              style={{ background: selectedDoc.teleconsult ? "#F4F7F6" : "#0E7C7B", border: "none", borderRadius: 12, padding: "12px 28px", color: selectedDoc.teleconsult ? "#6B7B80" : "#fff", fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: "inherit", width: "100%" }}>
               Fermer
             </button>
           </div>
@@ -380,6 +514,12 @@ export default function SitePage() {
   };
 
   // ── Shared screen layout wrapper ────────────────────────────────────────────
+  const ToastBanner = () => toast.visible ? (
+    <div style={{ position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)", background: "#0F2227", border: "1px solid rgba(14,124,123,0.5)", borderRadius: 12, padding: "12px 20px", color: "#fff", fontSize: 13, fontWeight: 600, zIndex: 9999, boxShadow: "0 4px 20px rgba(0,0,0,0.4)", whiteSpace: "nowrap" }}>
+      {toast.message}
+    </div>
+  ) : null;
+
   const renderScreenLayout = (title: string, children: React.ReactNode) => (
     <div style={{ background: "#F4F7F6", minHeight: "calc(100vh - 52px)" }}>
       <div style={{ maxWidth: 960, margin: "0 auto", padding: "24px 20px" }}>
@@ -394,6 +534,7 @@ export default function SitePage() {
         {children}
       </div>
       {renderBookingModal()}
+      <ToastBanner />
     </div>
   );
 
@@ -835,13 +976,10 @@ export default function SitePage() {
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 8, flexShrink: 0 }}>
                 <button
-                  onClick={() => {
-                    const room = "sangocare-" + d.id.replace(/[^a-z0-9]/gi, "");
-                    window.open("https://meet.jit.si/" + room, "_blank");
-                  }}
-                  style={{ background: "#1D69E5", border: "none", borderRadius: 10, padding: "9px 16px", color: "#fff", fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap", display: "flex", alignItems: "center", gap: 5 }}>
-                  <span className="material-symbols-rounded" style={{ fontSize: 14 }}>videocam</span>
-                  Rejoindre
+                  onClick={() => window.open(toWhatsApp(d.phone, `Bonjour ${d.name}, je souhaite une téléconsultation via SangoCare.`), "_blank")}
+                  style={{ background: "#25D366", border: "none", borderRadius: 10, padding: "9px 16px", color: "#fff", fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap", display: "flex", alignItems: "center", gap: 5 }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="#fff"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+                  Appeler WhatsApp
                 </button>
                 <button
                   onClick={() => openBooking(d.id)}
@@ -1052,6 +1190,35 @@ export default function SitePage() {
               })()}
             </div>
           </div>
+        )}
+      </div>
+    ));
+  }
+
+  // ── Screen: Messagerie ─────────────────────────────────────────────────────
+  if (siteScreen === "messagerie") {
+    return renderScreenLayout("Messagerie", (
+      <div style={{ background: "#fff", borderRadius: 16, border: "1px solid #E2EAE8", overflow: "hidden", height: 520 }}>
+        {convLoading && (
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: "#8AA4A8", fontSize: 14 }}>
+            Connexion…
+          </div>
+        )}
+        {!convLoading && patientConv && (
+          <ChatWindow
+            conversationId={patientConv.id}
+            myRole="patient"
+            myName={userName}
+            peerName="Équipe médicale SangoCare"
+          />
+        )}
+        {!convLoading && !patientConv && (
+          <ChatWindow
+            conversationId="__unconfigured__"
+            myRole="patient"
+            myName={userName}
+            peerName="Équipe médicale"
+          />
         )}
       </div>
     ));
@@ -1489,6 +1656,8 @@ export default function SitePage() {
           </div>
         </div>
       )}
+
+      <ToastBanner />
     </div>
   );
 }

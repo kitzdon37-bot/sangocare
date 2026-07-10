@@ -1,0 +1,38 @@
+{
+  "conversations": [
+    {
+      "id": "684d610e-4431-4905-9ee4-4a645d6ac6dc",
+      "patient_phone": "+236 72737300",
+      "patient_name": "Utilisateur",
+      "created_at": "2026-07-10T12:17:38.951Z",
+      "last_msg_at": "2026-07-10T12:18:36.992Z"
+    },
+    {
+      "id": "3cbabc20-50d1-4f71-9eb3-43bd5b06df85",
+      "patient_phone": "+236 72 00 00 00",
+      "patient_name": "Nadège Yakité",
+      "created_at": "2026-07-10T12:18:54.981Z",
+      "last_msg_at": "2026-07-10T12:18:54.981Z"
+    }
+  ],
+  "messages": [
+    {
+      "id": "fec0fe3b-76b2-4e0d-b392-a6d2aab30f16",
+      "conversation_id": "684d610e-4431-4905-9ee4-4a645d6ac6dc",
+      "sender_role": "patient",
+      "sender_name": "Utilisateur",
+      "content": "Bonjour",
+      "created_at": "2026-07-10T12:17:49.362Z",
+      "read": true
+    },
+    {
+      "id": "0cdb8944-687c-4796-b96d-f5d8f0c9b6f9",
+      "conversation_id": "684d610e-4431-4905-9ee4-4a645d6ac6dc",
+      "sender_role": "personnel",
+      "sender_name": "Dr. B. Nzapa",
+      "content": "Comment ça va?",
+      "created_at": "2026-07-10T12:18:36.992Z",
+      "read": true
+    }
+  ]
+}
