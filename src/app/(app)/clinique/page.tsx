@@ -143,6 +143,7 @@ export default function CliniquePage() {
     patients, updatePatient,
     appointments,
     calendarEvents, addCalendarEvent, updateCalendarEvent, updateCalendarEventFull,
+    isMobile,
   } = useAppStore();
 
   /** Trouve le téléphone d'un patient par son nom (cherche dans appointments puis patients) */
@@ -160,6 +161,7 @@ export default function CliniquePage() {
   }
 
   const [sidebarTab, setSidebarTab] = useState<SidebarTab>("agenda");
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const [editPatient, setEditPatient] = useState<typeof patients[0] | null>(null);
   const [editEvent, setEditEvent] = useState<CalendarEvent | null>(null);
   const [calMonth, setCalMonth] = useState(new Date().getMonth());
@@ -297,28 +299,49 @@ export default function CliniquePage() {
   return (
     <div style={{ display: "flex", height: "100vh", background: C.bg, fontFamily: "system-ui, sans-serif" }}>
 
+      {/* ── Backdrop mobile ── */}
+      {isMobile && drawerOpen && (
+        <div onClick={() => setDrawerOpen(false)} style={{
+          position: "fixed", inset: 0, zIndex: 150,
+          background: "rgba(0,0,0,0.55)", backdropFilter: "blur(2px)",
+        }} />
+      )}
+
       {/* ── Sidebar ── */}
       <div style={{
         width: 220, minWidth: 220, background: C.sidebar,
         display: "flex", flexDirection: "column",
         padding: "0 0 16px 0", flexShrink: 0,
+        ...(isMobile ? {
+          position: "fixed", left: 0, top: 0, bottom: 0, zIndex: 200,
+          transform: drawerOpen ? "translateX(0)" : "translateX(-100%)",
+          transition: "transform 0.25s cubic-bezier(0.4,0,0.2,1)",
+          boxShadow: drawerOpen ? "4px 0 32px rgba(0,0,0,0.5)" : "none",
+        } : {}),
       }}>
         {/* Header */}
-        <div style={{ padding: "24px 16px 20px", borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
-          <div style={{
-            width: 44, height: 44, borderRadius: 10,
-            background: "rgba(14,124,123,0.25)",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            marginBottom: 10,
-          }}>
-            <span className="material-symbols-rounded" style={{ fontSize: 24, color: "#5ECEC5" }}>local_hospital</span>
+        <div style={{ padding: "24px 16px 20px", borderBottom: "1px solid rgba(255,255,255,0.07)", display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
+          <div>
+            <div style={{
+              width: 44, height: 44, borderRadius: 10,
+              background: "rgba(14,124,123,0.25)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              marginBottom: 10,
+            }}>
+              <span className="material-symbols-rounded" style={{ fontSize: 24, color: "#5ECEC5" }}>local_hospital</span>
+            </div>
+            <div style={{ color: "#fff", fontWeight: 700, fontSize: 14 }}>Dr. B. Nzapa</div>
+            <div style={{ color: "#7A9BA0", fontSize: 12, marginTop: 2 }}>Médecin généraliste</div>
           </div>
-          <div style={{ color: "#fff", fontWeight: 700, fontSize: 14 }}>Dr. B. Nzapa</div>
-          <div style={{ color: "#7A9BA0", fontSize: 12, marginTop: 2 }}>Médecin généraliste</div>
+          {isMobile && (
+            <button onClick={() => setDrawerOpen(false)} style={{ background: "rgba(255,255,255,0.07)", border: "none", borderRadius: 8, width: 32, height: 32, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+              <span className="material-symbols-rounded" style={{ fontSize: 18, color: "#7A9BA0" }}>close</span>
+            </button>
+          )}
         </div>
 
         {/* Menu */}
-        <nav style={{ flex: 1, padding: "12px 8px" }}>
+        <nav style={{ flex: 1, padding: "12px 8px", overflowY: "auto" }}>
           {menuItems.map((item) => {
             const isActive = sidebarTab === item.id;
             const isHov = hovBtn === `menu-${item.id}`;
@@ -331,7 +354,7 @@ export default function CliniquePage() {
                 key={item.id}
                 onMouseEnter={() => setHovBtn(`menu-${item.id}`)}
                 onMouseLeave={() => setHovBtn(null)}
-                onClick={() => setSidebarTab(item.id)}
+                onClick={() => { setSidebarTab(item.id); if (isMobile) setDrawerOpen(false); }}
                 style={{
                   display: "flex", alignItems: "center", gap: 10,
                   padding: "10px 12px", borderRadius: 8,
@@ -355,9 +378,25 @@ export default function CliniquePage() {
       {/* ── Contenu principal ── */}
       <div style={{
         flex: 1, background: C.content,
-        overflowY: "auto", padding: 24,
-        display: "flex", flexDirection: "column", gap: 24,
+        overflowY: "auto", padding: isMobile ? "14px 14px" : 24,
+        display: "flex", flexDirection: "column", gap: isMobile ? 14 : 24,
       }}>
+        {/* Hamburger mobile */}
+        {isMobile && (
+          <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 4 }}>
+            <button onClick={() => setDrawerOpen(true)} style={{
+              background: C.card, border: `1px solid ${C.border}`,
+              borderRadius: 10, width: 40, height: 40, cursor: "pointer",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              boxShadow: "0 1px 4px rgba(0,0,0,0.08)", flexShrink: 0,
+            }}>
+              <span className="material-symbols-rounded" style={{ fontSize: 22, color: C.teal }}>menu</span>
+            </button>
+            <span style={{ fontWeight: 700, fontSize: 15, color: C.text }}>
+              {menuItems.find(m => m.id === sidebarTab)?.label ?? "Menu"}
+            </span>
+          </div>
+        )}
 
         {/* ══ ONGLET AGENDA ══ */}
         {sidebarTab === "agenda" && (
