@@ -14,7 +14,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (mounted && !isLoggedIn) router.push("/");
+    if (mounted && !isLoggedIn) router.push("/connexion");
   }, [mounted, isLoggedIn, router]);
 
   useEffect(() => {
