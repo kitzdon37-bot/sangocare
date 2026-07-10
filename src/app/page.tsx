@@ -1,8 +1,11 @@
 "use client";
 import { useState, useEffect, useRef, useCallback } from "react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useAppStore } from "@/store/appStore";
 import type { Appointment } from "@/store/appStore";
+
+const MapCentrafrique = dynamic(() => import("@/components/MapCentrafrique"), { ssr: false });
 
 const SPECIALTIES = [
   { label: "Généraliste", icon: "stethoscope", color: "#0E7C7B" },
@@ -25,7 +28,7 @@ const QUICK_ACCESS = [
   { label: "Ma famille", icon: "family_restroom", color: "#DB2777", screen: "famille" as const },
   { label: "Don de sang", icon: "bloodtype", color: "#DC2626", screen: "don" as const },
   { label: "Mobile Money", icon: "account_balance_wallet", color: "#059669", screen: null, toast: "Mobile Money — bientôt disponible" },
-  { label: "Paramètres", icon: "settings", color: "#6B7B80", screen: null, toast: "Paramètres — bientôt disponible" },
+  { label: "Paramètres", icon: "settings", color: "#6B7B80", screen: null, toast: "" },
 ] as const;
 
 const STEPS = [
@@ -103,8 +106,28 @@ export default function SitePage() {
   const [selectedDay, setSelectedDay] = useState(0);
   const [specialtyFilter, setSpecialtyFilter] = useState<string | null>(null);
 
-  // RDV tabs
+  // RDV tabs + calendrier
   const [rdvTab, setRdvTab] = useState<"avenir" | "passes">("avenir");
+  const [calMonth, setCalMonth] = useState(new Date().getMonth());
+  const [calYear, setCalYear] = useState(new Date().getFullYear());
+  const [calSelectedDay, setCalSelectedDay] = useState<string | null>(null);
+
+  // Modals
+  const [showParamModal, setShowParamModal] = useState(false);
+  const [showAddMembre, setShowAddMembre] = useState(false);
+  const [showDonForm, setShowDonForm] = useState(false);
+  const [newMembreName, setNewMembreName] = useState("");
+  const [newMembreRelation, setNewMembreRelation] = useState("");
+  const [newMembreAge, setNewMembreAge] = useState("");
+  const [newMembreSang, setNewMembreSang] = useState("O+");
+  const [famMembers, setFamMembers] = useState([
+    { initials: "NY", name: "Nadège Yakité", relation: "Vous", detail: "Adulte", blood: "O+", color: "#0E7C7B" },
+    { initials: "TY", name: "Théodore Yakité", relation: "Enfant", detail: "8 ans", blood: "A+", color: "#7C3AED" },
+    { initials: "MY", name: "Marie Yakité", relation: "Parent", detail: "54 ans", blood: "B+", color: "#D97706" },
+  ]);
+  const [donPhone, setDonPhone] = useState("");
+  const [donBlood, setDonBlood] = useState("O+");
+  const [donCity, setDonCity] = useState("Bangui");
 
   // Scroll restoration
   const savedScroll = useRef(0);
@@ -426,22 +449,12 @@ export default function SitePage() {
           <span style={{ color: "#0E7C7B", fontSize: 13, fontWeight: 700 }}>GPS activé · Bangui, Centrafrique</span>
         </div>
 
-        {/* Map placeholder */}
-        <div style={{ background: "#0C1A1E", borderRadius: 16, height: 280, position: "relative", overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <div style={{ color: "#8AA4A8", fontSize: 14, fontWeight: 600, textAlign: "center" }}>
-            <span className="material-symbols-rounded" style={{ fontSize: 40, color: "#0E7C7B", display: "block", marginBottom: 8 }}>map</span>
-            Carte interactive · Bangui
-          </div>
-          {/* Dot markers */}
-          {[
-            { top: "35%", left: "48%", color: "#0E7C7B" },
-            { top: "52%", left: "38%", color: "#1D69E5" },
-            { top: "44%", left: "60%", color: "#D97706" },
-            { top: "62%", left: "52%", color: "#DC2626" },
-            { top: "30%", left: "65%", color: "#059669" },
-          ].map((dot, i) => (
-            <div key={i} style={{ position: "absolute", top: dot.top, left: dot.left, width: 14, height: 14, borderRadius: "50%", background: dot.color, border: "2px solid #fff", boxShadow: "0 2px 6px rgba(0,0,0,0.4)" }} />
-          ))}
+        {/* Carte Leaflet Centrafrique */}
+        <div style={{ borderRadius: 16, height: 360, overflow: "hidden", border: "1px solid #E2EAE8", boxShadow: "0 4px 16px rgba(0,0,0,0.1)" }}>
+          <MapCentrafrique
+            doctors={doctors}
+            onSelect={(id) => { openBooking(id); }}
+          />
         </div>
 
         {/* Doctors sorted by proximity */}
@@ -615,22 +628,88 @@ export default function SitePage() {
       return "#6B7B80";
     };
 
+    const MONTHS_FR = ["Janvier","Février","Mars","Avril","Mai","Juin","Juillet","Août","Septembre","Octobre","Novembre","Décembre"];
+    const DAYS_FR = ["Lun","Mar","Mer","Jeu","Ven","Sam","Dim"];
+    const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
+    const firstDow = (new Date(calYear, calMonth, 1).getDay() + 6) % 7; // 0=Lun
+    const rdvByDay: Record<string, typeof appointments> = {};
+    appointments.forEach(a => { (rdvByDay[a.date] = rdvByDay[a.date] || []).push(a); });
+    const prevMonth = () => { if (calMonth === 0) { setCalMonth(11); setCalYear(y => y - 1); } else setCalMonth(m => m - 1); };
+    const nextMonth = () => { if (calMonth === 11) { setCalMonth(0); setCalYear(y => y + 1); } else setCalMonth(m => m + 1); };
+
+    const displayedRdv = calSelectedDay
+      ? (rdvByDay[calSelectedDay] || [])
+      : filtered;
+
     return renderScreenLayout("Mes rendez-vous", (
       <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-        {/* Tabs */}
-        <div style={{ display: "flex", background: "#fff", borderRadius: 12, padding: 4, border: "1px solid #E2EAE8", alignSelf: "flex-start", gap: 4 }}>
-          {(["avenir", "passes"] as const).map(tab => (
-            <button key={tab} onClick={() => setRdvTab(tab)}
-              style={{ padding: "8px 20px", borderRadius: 9, border: "none", cursor: "pointer", fontSize: 13, fontWeight: 700, fontFamily: "inherit", background: rdvTab === tab ? "#0E7C7B" : "transparent", color: rdvTab === tab ? "#fff" : "#6B7B80" }}>
-              {tab === "avenir" ? "À venir" : "Passés"}
+
+        {/* ── Calendrier ── */}
+        <div style={{ background: "#fff", borderRadius: 16, padding: "20px", border: "1px solid #E2EAE8", boxShadow: "0 2px 8px rgba(0,0,0,0.05)" }}>
+          {/* Entête navigation mois/année */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+            <button onClick={prevMonth} style={{ background: "#F4F7F6", border: "none", borderRadius: 8, width: 32, height: 32, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <span className="material-symbols-rounded" style={{ fontSize: 18, color: "#46565B" }}>chevron_left</span>
             </button>
-          ))}
+            <div style={{ textAlign: "center" }}>
+              <div style={{ fontWeight: 800, fontSize: 16, color: "#0F1F24" }}>{MONTHS_FR[calMonth]}</div>
+              <div style={{ fontSize: 12, color: "#6B7B80", marginTop: 1 }}>{calYear}</div>
+            </div>
+            <button onClick={nextMonth} style={{ background: "#F4F7F6", border: "none", borderRadius: 8, width: 32, height: 32, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <span className="material-symbols-rounded" style={{ fontSize: 18, color: "#46565B" }}>chevron_right</span>
+            </button>
+          </div>
+          {/* Labels jours */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 2, marginBottom: 4 }}>
+            {DAYS_FR.map(d => <div key={d} style={{ textAlign: "center", fontSize: 11, fontWeight: 700, color: "#8AA4A8", padding: "4px 0" }}>{d}</div>)}
+          </div>
+          {/* Grille jours */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 2 }}>
+            {Array.from({ length: firstDow }).map((_, i) => <div key={`e${i}`} />)}
+            {Array.from({ length: daysInMonth }).map((_, i) => {
+              const day = i + 1;
+              const dateStr = `${calYear}-${String(calMonth + 1).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
+              const hasRdv = !!rdvByDay[dateStr];
+              const isSelected = calSelectedDay === dateStr;
+              const isToday = dateStr === new Date().toISOString().slice(0,10);
+              return (
+                <button key={day} onClick={() => setCalSelectedDay(isSelected ? null : dateStr)}
+                  style={{ background: isSelected ? "#0E7C7B" : isToday ? "#E5F2F1" : "transparent", border: isToday && !isSelected ? "1.5px solid #0E7C7B" : "1.5px solid transparent", borderRadius: 8, padding: "6px 2px", cursor: "pointer", fontFamily: "inherit", display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
+                  <span style={{ fontSize: 13, fontWeight: hasRdv || isToday ? 800 : 500, color: isSelected ? "#fff" : isToday ? "#0E7C7B" : "#0F1F24" }}>{day}</span>
+                  {hasRdv && <div style={{ width: 5, height: 5, borderRadius: "50%", background: isSelected ? "#fff" : "#0E7C7B" }} />}
+                </button>
+              );
+            })}
+          </div>
+          {calSelectedDay && (
+            <button onClick={() => setCalSelectedDay(null)} style={{ marginTop: 10, background: "none", border: "none", color: "#6B7B80", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>
+              ✕ Effacer sélection
+            </button>
+          )}
         </div>
 
-        {filtered.length === 0 ? (
+        {/* Tabs */}
+        {!calSelectedDay && (
+          <div style={{ display: "flex", background: "#fff", borderRadius: 12, padding: 4, border: "1px solid #E2EAE8", alignSelf: "flex-start", gap: 4 }}>
+            {(["avenir", "passes"] as const).map(tab => (
+              <button key={tab} onClick={() => setRdvTab(tab)}
+                style={{ padding: "8px 20px", borderRadius: 9, border: "none", cursor: "pointer", fontSize: 13, fontWeight: 700, fontFamily: "inherit", background: rdvTab === tab ? "#0E7C7B" : "transparent", color: rdvTab === tab ? "#fff" : "#6B7B80" }}>
+                {tab === "avenir" ? "À venir" : "Passés"}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {calSelectedDay && (
+          <div style={{ fontSize: 13, fontWeight: 700, color: "#46565B" }}>
+            RDV du {new Date(calSelectedDay + "T00:00:00").toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
+          </div>
+        )}
+
+        {displayedRdv.length === 0 ? (
           <div style={{ background: "#fff", borderRadius: 16, padding: "40px 24px", textAlign: "center", border: "1px solid #E2EAE8" }}>
             <span className="material-symbols-rounded" style={{ fontSize: 40, color: "#E2EAE8", display: "block", marginBottom: 12 }}>event_note</span>
-            <div style={{ color: "#6B7B80", fontSize: 14, marginBottom: 16 }}>Aucun rendez-vous</div>
+            <div style={{ color: "#6B7B80", fontSize: 14, marginBottom: 16 }}>{calSelectedDay ? "Aucun rendez-vous ce jour" : "Aucun rendez-vous"}</div>
             <button onClick={() => navigateTo("search")}
               style={{ background: "#0E7C7B", border: "none", borderRadius: 10, padding: "10px 22px", color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>
               Prendre RDV
@@ -638,7 +717,7 @@ export default function SitePage() {
           </div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            {filtered.map(a => {
+            {displayedRdv.map(a => {
               const initials = a.doctorName.split(" ").filter((w: string) => w.length > 1).map((w: string) => w[0]).join("").toUpperCase().slice(0, 2);
               return (
                 <div key={a.id} style={{ background: "#fff", borderRadius: 16, padding: "16px 20px", border: "1px solid #E2EAE8", boxShadow: "0 2px 8px rgba(0,0,0,0.05)", display: "flex", gap: 14, alignItems: "center" }}>
@@ -646,11 +725,22 @@ export default function SitePage() {
                   <div style={{ flex: 1 }}>
                     <div style={{ fontWeight: 800, fontSize: 14, color: "#0F1F24" }}>{a.doctorName}</div>
                     <div style={{ fontSize: 12, color: "#6B7B80", marginTop: 2 }}>{a.specialty}</div>
-                    <div style={{ fontSize: 12, color: "#46565B", marginTop: 4 }}>{a.date} · {a.heure}</div>
+                    <div style={{ fontSize: 12, color: "#46565B", marginTop: 4, display: "flex", alignItems: "center", gap: 6 }}>
+                      <span className="material-symbols-rounded" style={{ fontSize: 13 }}>calendar_today</span>
+                      {new Date(a.date + "T00:00:00").toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" })}
+                      <span className="material-symbols-rounded" style={{ fontSize: 13 }}>schedule</span>
+                      {a.heure}
+                    </div>
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-end" }}>
                     <span style={{ background: `${statutColor(a.statut)}18`, color: statutColor(a.statut), fontSize: 11, fontWeight: 700, borderRadius: 20, padding: "3px 10px" }}>{a.statut}</span>
                     <span style={{ background: "#F4F7F6", color: "#46565B", fontSize: 11, fontWeight: 600, borderRadius: 20, padding: "3px 10px" }}>{a.type}</span>
+                    {a.statut === "En attente" && (
+                      <button onClick={() => showToast("Rendez-vous annulé")}
+                        style={{ background: "#FEE2E2", border: "none", borderRadius: 8, padding: "4px 10px", color: "#DC2626", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+                        Annuler
+                      </button>
+                    )}
                   </div>
                 </div>
               );
@@ -694,8 +784,12 @@ export default function SitePage() {
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 8, flexShrink: 0 }}>
                 <button
-                  onClick={() => showToast("Connexion en cours…")}
-                  style={{ background: "#1D69E5", border: "none", borderRadius: 10, padding: "9px 16px", color: "#fff", fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" }}>
+                  onClick={() => {
+                    const room = "sangocare-" + d.id.replace(/[^a-z0-9]/gi, "");
+                    window.open("https://meet.jit.si/" + room, "_blank");
+                  }}
+                  style={{ background: "#1D69E5", border: "none", borderRadius: 10, padding: "9px 16px", color: "#fff", fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap", display: "flex", alignItems: "center", gap: 5 }}>
+                  <span className="material-symbols-rounded" style={{ fontSize: 14 }}>videocam</span>
                   Rejoindre
                 </button>
                 <button
@@ -720,27 +814,31 @@ export default function SitePage() {
 
   // ── Screen: Famille ─────────────────────────────────────────────────────────
   if (siteScreen === "famille") {
-    const members = [
-      { initials: "NY", name: "Nadège Yakité", relation: "Vous", detail: "Adulte", blood: "O+", color: "#0E7C7B" },
-      { initials: "TY", name: "Théodore Yakité", relation: "Enfant", detail: "8 ans", blood: "A+", color: "#7C3AED" },
-      { initials: "MY", name: "Marie Yakité", relation: "Parent", detail: "54 ans", blood: "B+", color: "#D97706" },
-    ];
+    const COLORS_FAM = ["#0E7C7B","#7C3AED","#D97706","#DC2626","#059669","#2563EB","#DB2777"];
+    const addMembre = () => {
+      if (!newMembreName.trim()) return;
+      const initials = newMembreName.split(" ").map(w => w[0]).join("").toUpperCase().slice(0,2);
+      setFamMembers(prev => [...prev, { initials, name: newMembreName, relation: newMembreRelation || "Famille", detail: newMembreAge ? newMembreAge + " ans" : "", blood: newMembreSang, color: COLORS_FAM[prev.length % COLORS_FAM.length] }]);
+      setNewMembreName(""); setNewMembreRelation(""); setNewMembreAge(""); setNewMembreSang("O+");
+      setShowAddMembre(false);
+      showToast("Membre ajouté !");
+    };
+    const inpFam: React.CSSProperties = { border: "1.5px solid #E2EAE8", borderRadius: 10, padding: "10px 14px", fontSize: 14, outline: "none", background: "#fff", color: "#0F1F24", fontFamily: "inherit", width: "100%", boxSizing: "border-box" };
 
     return renderScreenLayout("Ma famille", (
       <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
         <div style={{ fontSize: 14, color: "#6B7B80" }}>Gérez les rendez-vous de toute votre famille</div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          {members.map(m => (
+          {famMembers.map(m => (
             <div key={m.name} style={{ background: "#fff", borderRadius: 16, padding: "18px 20px", border: "1px solid #E2EAE8", boxShadow: "0 2px 8px rgba(0,0,0,0.05)", display: "flex", gap: 14, alignItems: "center" }}>
               <div style={{ width: 52, height: 52, borderRadius: "50%", background: m.color, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 800, fontSize: 18, flexShrink: 0 }}>{m.initials}</div>
               <div style={{ flex: 1 }}>
                 <div style={{ fontWeight: 800, fontSize: 15, color: "#0F1F24" }}>{m.name}</div>
-                <div style={{ fontSize: 12, color: "#6B7B80", marginTop: 2 }}>{m.relation} · {m.detail}</div>
+                <div style={{ fontSize: 12, color: "#6B7B80", marginTop: 2 }}>{m.relation}{m.detail ? " · " + m.detail : ""}</div>
                 <div style={{ fontSize: 12, color: "#6B7B80", marginTop: 2 }}>Groupe sanguin : <strong style={{ color: "#DC2626" }}>{m.blood}</strong></div>
               </div>
-              <button
-                onClick={() => navigateTo("search")}
+              <button onClick={() => navigateTo("search")}
                 style={{ background: "#0E7C7B", border: "none", borderRadius: 10, padding: "9px 16px", color: "#fff", fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" }}>
                 Prendre RDV
               </button>
@@ -748,12 +846,39 @@ export default function SitePage() {
           ))}
         </div>
 
-        <button
-          onClick={() => showToast("Bientôt disponible")}
-          style={{ background: "#fff", border: "2px dashed #E2EAE8", borderRadius: 16, padding: "16px", color: "#6B7B80", fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
-          <span className="material-symbols-rounded" style={{ fontSize: 20, color: "#0E7C7B" }}>add</span>
+        <button onClick={() => setShowAddMembre(true)}
+          style={{ background: "#fff", border: "2px dashed #0E7C7B66", borderRadius: 16, padding: "16px", color: "#0E7C7B", fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+          <span className="material-symbols-rounded" style={{ fontSize: 20 }}>person_add</span>
           Ajouter un membre
         </button>
+
+        {/* Modal ajout membre */}
+        {showAddMembre && (
+          <div onClick={() => setShowAddMembre(false)} style={{ position: "fixed", inset: 0, background: "rgba(12,26,30,0.6)", zIndex: 500, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+            <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 20, padding: "28px 24px", width: "100%", maxWidth: 400, display: "flex", flexDirection: "column", gap: 14 }}>
+              <div style={{ fontWeight: 800, fontSize: 17, color: "#0F1F24", marginBottom: 4 }}>Ajouter un membre</div>
+              <div><label style={{ fontSize: 12, fontWeight: 700, color: "#6B7B80", display: "block", marginBottom: 6 }}>Nom complet *</label>
+                <input value={newMembreName} onChange={e => setNewMembreName(e.target.value)} placeholder="Prénom Nom" style={inpFam} /></div>
+              <div><label style={{ fontSize: 12, fontWeight: 700, color: "#6B7B80", display: "block", marginBottom: 6 }}>Relation</label>
+                <select value={newMembreRelation} onChange={e => setNewMembreRelation(e.target.value)} style={inpFam}>
+                  <option value="">-- Choisir --</option>
+                  {["Enfant","Parent","Conjoint(e)","Frère/Sœur","Grand-parent","Autre"].map(r => <option key={r} value={r}>{r}</option>)}
+                </select></div>
+              <div style={{ display: "flex", gap: 10 }}>
+                <div style={{ flex: 1 }}><label style={{ fontSize: 12, fontWeight: 700, color: "#6B7B80", display: "block", marginBottom: 6 }}>Âge</label>
+                  <input type="number" value={newMembreAge} onChange={e => setNewMembreAge(e.target.value)} placeholder="Ex: 12" style={inpFam} /></div>
+                <div style={{ flex: 1 }}><label style={{ fontSize: 12, fontWeight: 700, color: "#6B7B80", display: "block", marginBottom: 6 }}>Groupe sanguin</label>
+                  <select value={newMembreSang} onChange={e => setNewMembreSang(e.target.value)} style={inpFam}>
+                    {["O-","O+","A-","A+","B-","B+","AB-","AB+"].map(g => <option key={g} value={g}>{g}</option>)}
+                  </select></div>
+              </div>
+              <div style={{ display: "flex", gap: 10, marginTop: 4 }}>
+                <button onClick={() => setShowAddMembre(false)} style={{ flex: 1, background: "#F4F7F6", border: "none", borderRadius: 12, padding: "13px", color: "#46565B", fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: "inherit" }}>Annuler</button>
+                <button onClick={addMembre} style={{ flex: 1, background: "#0E7C7B", border: "none", borderRadius: 12, padding: "13px", color: "#fff", fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: "inherit" }}>Ajouter</button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     ));
   }
@@ -833,11 +958,50 @@ export default function SitePage() {
         </div>
 
         {/* CTA */}
-        <button
-          onClick={() => showToast("Un agent vous contactera pour prendre rendez-vous")}
-          style={{ background: "#DC2626", border: "none", borderRadius: 14, padding: "16px", color: "#fff", fontWeight: 700, fontSize: 16, cursor: "pointer", fontFamily: "inherit" }}>
+        <button onClick={() => setShowDonForm(true)}
+          style={{ background: "#DC2626", border: "none", borderRadius: 14, padding: "16px", color: "#fff", fontWeight: 700, fontSize: 16, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+          <span className="material-symbols-rounded" style={{ fontSize: 20 }}>bloodtype</span>
           Je souhaite donner
         </button>
+
+        {/* Modal don de sang */}
+        {showDonForm && (
+          <div onClick={() => setShowDonForm(false)} style={{ position: "fixed", inset: 0, background: "rgba(12,26,30,0.6)", zIndex: 500, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+            <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 20, padding: "28px 24px", width: "100%", maxWidth: 400, display: "flex", flexDirection: "column", gap: 14 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
+                <div style={{ width: 40, height: 40, borderRadius: "50%", background: "#FEE2E2", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <span className="material-symbols-rounded" style={{ fontSize: 22, color: "#DC2626" }}>bloodtype</span>
+                </div>
+                <div style={{ fontWeight: 800, fontSize: 17, color: "#0F1F24" }}>Inscription au don</div>
+              </div>
+              {(() => {
+                const inpD: React.CSSProperties = { border: "1.5px solid #E2EAE8", borderRadius: 10, padding: "10px 14px", fontSize: 14, outline: "none", background: "#fff", color: "#0F1F24", fontFamily: "inherit", width: "100%", boxSizing: "border-box" };
+                return (<>
+                  <div><label style={{ fontSize: 12, fontWeight: 700, color: "#6B7B80", display: "block", marginBottom: 6 }}>Numéro de téléphone</label>
+                    <input value={donPhone} onChange={e => setDonPhone(e.target.value)} placeholder="+236 72 00 00 00" style={inpD} /></div>
+                  <div style={{ display: "flex", gap: 10 }}>
+                    <div style={{ flex: 1 }}><label style={{ fontSize: 12, fontWeight: 700, color: "#6B7B80", display: "block", marginBottom: 6 }}>Groupe sanguin</label>
+                      <select value={donBlood} onChange={e => setDonBlood(e.target.value)} style={inpD}>
+                        {["O-","O+","A-","A+","B-","B+","AB-","AB+"].map(g => <option key={g} value={g}>{g}</option>)}
+                      </select></div>
+                    <div style={{ flex: 1 }}><label style={{ fontSize: 12, fontWeight: 700, color: "#6B7B80", display: "block", marginBottom: 6 }}>Ville</label>
+                      <select value={donCity} onChange={e => setDonCity(e.target.value)} style={inpD}>
+                        {["Bangui","Bimbo","Begoua","Bambari","Berberati","Bouar"].map(c => <option key={c} value={c}>{c}</option>)}
+                      </select></div>
+                  </div>
+                  <div style={{ background: "#FEF2F2", borderRadius: 10, padding: "12px 14px", fontSize: 12, color: "#991B1B" }}>
+                    Un agent SangoCare vous contactera dans les 24h pour fixer la date du don.
+                  </div>
+                  <div style={{ display: "flex", gap: 10 }}>
+                    <button onClick={() => setShowDonForm(false)} style={{ flex: 1, background: "#F4F7F6", border: "none", borderRadius: 12, padding: "13px", color: "#46565B", fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: "inherit" }}>Annuler</button>
+                    <button onClick={() => { setShowDonForm(false); showToast("Inscription enregistrée — nous vous contacterons !"); }}
+                      style={{ flex: 1, background: "#DC2626", border: "none", borderRadius: 12, padding: "13px", color: "#fff", fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: "inherit" }}>Confirmer</button>
+                  </div>
+                </>);
+              })()}
+            </div>
+          </div>
+        )}
       </div>
     ));
   }
@@ -1096,7 +1260,9 @@ export default function SitePage() {
                 onClick={() => {
                   if (item.screen) {
                     navigateTo(item.screen);
-                  } else if ("toast" in item) {
+                  } else if (item.label === "Paramètres") {
+                    setShowParamModal(true);
+                  } else if ("toast" in item && item.toast) {
                     showToast(item.toast);
                   }
                 }}
@@ -1131,7 +1297,7 @@ export default function SitePage() {
         <div style={{ maxWidth: 960, margin: "0 auto" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24, flexWrap: "wrap", gap: 10 }}>
             <div style={{ fontWeight: 800, fontSize: 22, color: "#0F1F24" }}>Praticiens recommandés près de vous</div>
-            <button style={{ background: "none", border: "none", color: "#0E7C7B", fontWeight: 700, fontSize: 14, cursor: "pointer", display: "flex", alignItems: "center", gap: 4, fontFamily: "inherit" }}>
+            <button onClick={() => navigateTo("search")} style={{ background: "none", border: "none", color: "#0E7C7B", fontWeight: 700, fontSize: 14, cursor: "pointer", display: "flex", alignItems: "center", gap: 4, fontFamily: "inherit" }}>
               Voir tout <span className="material-symbols-rounded" style={{ fontSize: 16 }}>arrow_forward</span>
             </button>
           </div>
@@ -1232,6 +1398,46 @@ export default function SitePage() {
       </footer>
 
       {renderBookingModal()}
+
+      {/* ── Modal Paramètres ─────────────────────────────────────────────────── */}
+      {showParamModal && (
+        <div onClick={() => setShowParamModal(false)} style={{ position: "fixed", inset: 0, background: "rgba(12,26,30,0.6)", zIndex: 500, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 20, padding: "28px 24px", width: "100%", maxWidth: 400, display: "flex", flexDirection: "column", gap: 0 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+              <div style={{ fontWeight: 800, fontSize: 18, color: "#0F1F24" }}>Paramètres</div>
+              <button onClick={() => setShowParamModal(false)} style={{ background: "#F4F7F6", border: "none", borderRadius: 8, padding: "6px 8px", cursor: "pointer" }}>
+                <span className="material-symbols-rounded" style={{ fontSize: 18, color: "#46565B" }}>close</span>
+              </button>
+            </div>
+            {[
+              { icon: "notifications", label: "Notifications SMS", sub: "Rappels de rendez-vous par SMS", toggle: true },
+              { icon: "language", label: "Langue", sub: "Français · Sango disponible bientôt", toggle: false },
+              { icon: "signal_cellular_alt", label: "Mode USSD", sub: "Accès via *123# sans internet", toggle: true },
+              { icon: "dark_mode", label: "Mode sombre", sub: "Interface sombre (bientôt)", toggle: false },
+              { icon: "privacy_tip", label: "Confidentialité", sub: "Gérer vos données personnelles", toggle: false },
+              { icon: "help", label: "Aide & Support", sub: "FAQ, contacter SangoCare", toggle: false },
+            ].map((s, i) => (
+              <div key={s.label} style={{ display: "flex", alignItems: "center", gap: 14, padding: "14px 0", borderBottom: i < 5 ? "1px solid #F4F7F6" : "none" }}>
+                <div style={{ width: 38, height: 38, borderRadius: 10, background: "#E5F2F1", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  <span className="material-symbols-rounded" style={{ fontSize: 20, color: "#0E7C7B" }}>{s.icon}</span>
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 700, fontSize: 14, color: "#0F1F24" }}>{s.label}</div>
+                  <div style={{ fontSize: 12, color: "#6B7B80", marginTop: 1 }}>{s.sub}</div>
+                </div>
+                {s.toggle
+                  ? <div style={{ width: 44, height: 24, borderRadius: 12, background: "#0E7C7B", cursor: "pointer", position: "relative" }}><div style={{ position: "absolute", right: 3, top: 3, width: 18, height: 18, borderRadius: "50%", background: "#fff" }} /></div>
+                  : <span className="material-symbols-rounded" style={{ fontSize: 18, color: "#8AA4A8" }}>chevron_right</span>}
+              </div>
+            ))}
+            <button onClick={() => { setShowParamModal(false); showToast("Déconnecté"); }}
+              style={{ marginTop: 16, background: "#FEE2E2", border: "none", borderRadius: 12, padding: "13px", color: "#DC2626", fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+              <span className="material-symbols-rounded" style={{ fontSize: 18 }}>logout</span>
+              Se déconnecter
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
