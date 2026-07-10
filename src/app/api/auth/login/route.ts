@@ -1,15 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { signToken, COOKIE_NAME } from "@/lib/auth";
 
+// ── Code d'accès universel personnel ─────────────────────────────────────────
+const PERSONNEL_CODE = "RCA236";
+
 // ── Registre serveur (jamais envoyé au client) ────────────────────────────────
 // En production : remplacer par une requête base de données
-const PERSONNEL_REGISTRY: Record<string, { name: string; code: string }> = {
-  "75000101": { name: "Dr. Béatrice Nzapa", code: "SICA2026" },
-  "75000202": { name: "Dr. Jean-Paul Koyt",  code: "CHU2026"  },
-  "75000303": { name: "Pauline Sérémadé",    code: "MSP-RCA"  },
-  "75000404": { name: "Dr. Alphonse Gbékou", code: "CHU2026"  },
-  "75000505": { name: "Pierre Yangba",        code: "PRO2026"  },
-  "75000606": { name: "Dr. Marie Sata",       code: "PRO2026"  },
+const PERSONNEL_REGISTRY: Record<string, { name: string }> = {
+  "75000101": { name: "Dr. Béatrice Nzapa" },
+  "75000202": { name: "Dr. Jean-Paul Koyt"  },
+  "75000303": { name: "Pauline Sérémadé"    },
+  "75000404": { name: "Dr. Alphonse Gbékou" },
+  "75000505": { name: "Pierre Yangba"        },
+  "75000606": { name: "Dr. Marie Sata"       },
 };
 
 // Patients autorisés (en production : table users en base de données)
@@ -34,20 +37,21 @@ export async function POST(req: NextRequest) {
 
   // ── Vérification personnel ────────────────────────────────────────────────
   if (role === "personnel") {
-    const record = PERSONNEL_REGISTRY[cleanPhone];
-    const isValid = record && proCode && record.code === proCode.trim().toUpperCase();
+    const isValidCode = proCode && proCode.trim().toUpperCase() === PERSONNEL_CODE;
 
-    if (!isValid) {
+    if (!isValidCode) {
       // Délai artificiel pour ralentir le brute-force
       await new Promise(r => setTimeout(r, 500));
       return NextResponse.json(
-        { error: "Numéro ou code établissement incorrect. Contactez votre administrateur." },
+        { error: "Code d'accès incorrect. Le code est fourni par votre établissement." },
         { status: 401 }
       );
     }
 
-    const token = await signToken({ phone: "+236 " + phone, name: record.name, role: "personnel" });
-    const res = NextResponse.json({ name: record.name, role: "personnel" });
+    const record = PERSONNEL_REGISTRY[cleanPhone];
+    const name = record?.name || body.name || "Personnel de santé";
+    const token = await signToken({ phone: "+236 " + phone, name, role: "personnel" });
+    const res = NextResponse.json({ name, role: "personnel" });
     res.cookies.set(COOKIE_NAME, token, {
       httpOnly: true,   // Inaccessible depuis JS → protège contre XSS
       sameSite: "lax",  // Protège contre CSRF

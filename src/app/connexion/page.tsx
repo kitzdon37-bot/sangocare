@@ -82,7 +82,7 @@ export default function LoginPage() {
 
   const handleDemo = (roleId: UserRole) => {
     if (roleId === "personnel") {
-      doLogin("75000101", "personnel", "SICA2026");
+      doLogin("75000101", "personnel", "RCA236");
     } else {
       doLogin("72000000", "patient", undefined, "Marie Koïdé");
     }
@@ -219,7 +219,7 @@ export default function LoginPage() {
               {selectedRole === "personnel" ? "Code établissement" : "Code PIN"}
             </label>
             <input type="password" value={pin} onChange={e => setPin(e.target.value)}
-              placeholder={selectedRole === "personnel" ? "Ex : SICA2026" : "••••••"}
+              placeholder={selectedRole === "personnel" ? "Ex : RCA236" : "••••••"}
               maxLength={selectedRole === "personnel" ? 20 : 6}
               style={inp}
               onKeyDown={e => e.key === "Enter" && handleLogin()} />
