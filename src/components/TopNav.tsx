@@ -5,9 +5,8 @@ import { useAppStore } from "@/store/appStore";
 import type { ActiveView, NetworkMode, UserRole } from "@/store/appStore";
 
 const NAV_ITEMS: { view: ActiveView; icon: string; label: string; href: string; roles: UserRole[] }[] = [
-  { view: "patient",  icon: "smartphone",  label: "App patient",      href: "/patient",  roles: ["patient"] },
-  { view: "site",     icon: "language",    label: "Site web",         href: "/site",     roles: ["patient", "personnel"] },
-  { view: "clinique", icon: "stethoscope", label: "Espace pro",       href: "/clinique", roles: ["personnel"] },
+  { view: "site",     icon: "language",    label: "Accueil",    href: "/",         roles: ["patient", "personnel"] },
+  { view: "clinique", icon: "stethoscope", label: "Espace pro", href: "/clinique", roles: ["personnel"] },
 ];
 
 const ROLE_LABELS: Record<UserRole, { label: string; icon: string; color: string }> = {
@@ -148,7 +147,7 @@ export default function TopNav() {
                 <span className="material-symbols-rounded" style={{ fontSize: 16, color: "#8AA4A8" }}>settings</span>
                 Paramètres du compte
               </button>
-              <button onClick={() => { logout(); router.push("/"); setShowUserMenu(false); }}
+              <button onClick={() => { logout(); router.push("/connexion"); setShowUserMenu(false); }}
                 style={{ width: "100%", background: "transparent", border: "none", borderRadius: 8, padding: "8px 12px", cursor: "pointer", display: "flex", alignItems: "center", gap: 8, color: "#FCA5A5", fontSize: 13, textAlign: "left", fontFamily: "inherit" }}>
                 <span className="material-symbols-rounded" style={{ fontSize: 16, color: "#FCA5A5" }}>logout</span>
                 Se déconnecter

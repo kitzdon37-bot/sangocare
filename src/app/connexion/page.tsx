@@ -39,6 +39,7 @@ export default function LoginPage() {
   const [pin, setPin] = useState("");
   const [name, setName] = useState("");
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
   const [hovRole, setHovRole] = useState<string | null>(null);
   const [hovSubmit, setHovSubmit] = useState(false);
   const [hovDemo, setHovDemo] = useState<string | null>(null);
@@ -51,19 +52,40 @@ export default function LoginPage() {
     setError("");
   };
 
+  const doLogin = async (phoneNum: string, role: UserRole, proCode?: string, displayName?: string) => {
+    setLoading(true);
+    setError("");
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone: phoneNum, role, proCode, name: displayName }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setError(data.error || "Erreur de connexion"); return; }
+      login("+236 " + phoneNum, data.name, data.role as UserRole);
+      const r = ROLES.find(x => x.id === role)!;
+      router.push(r.href);
+    } catch {
+      setError("Impossible de contacter le serveur");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleLogin = () => {
     if (!phone) { setError("Entrez votre numéro de téléphone"); return; }
     if (!selectedRole) { setError("Choisissez un profil"); return; }
-    setError("");
-    const n = mode === "register" ? (name || roleInfo?.defaultName || "Utilisateur") : (roleInfo?.defaultName || "Utilisateur");
-    login("+236 " + phone, n, selectedRole);
-    router.push(roleInfo?.href || "/patient");
+    const displayName = mode === "register" ? (name || roleInfo?.defaultName || "Utilisateur") : undefined;
+    doLogin(phone, selectedRole, selectedRole === "personnel" ? pin : undefined, displayName);
   };
 
   const handleDemo = (roleId: UserRole) => {
-    const r = ROLES.find(x => x.id === roleId)!;
-    login("+236 72 00 00 00", r.defaultName, roleId);
-    router.push(r.href);
+    if (roleId === "personnel") {
+      doLogin("75000101", "personnel", "SICA2026");
+    } else {
+      doLogin("72000000", "patient", undefined, "Marie Koïdé");
+    }
   };
 
   const inp: React.CSSProperties = {
@@ -191,13 +213,17 @@ export default function LoginPage() {
             </div>
           </div>
 
-          {/* PIN */}
+          {/* Code PIN / Code établissement */}
           <div>
-            <label style={{ color: "#8AA4A8", fontSize: 12, fontWeight: 600, display: "block", marginBottom: 6 }}>Code PIN</label>
+            <label style={{ color: "#8AA4A8", fontSize: 12, fontWeight: 600, display: "block", marginBottom: 6 }}>
+              {selectedRole === "personnel" ? "Code établissement" : "Code PIN"}
+            </label>
             <input type="password" value={pin} onChange={e => setPin(e.target.value)}
-              placeholder="••••••" maxLength={6} style={inp}
+              placeholder={selectedRole === "personnel" ? "Ex : SICA2026" : "••••••"}
+              maxLength={selectedRole === "personnel" ? 20 : 6}
+              style={inp}
               onKeyDown={e => e.key === "Enter" && handleLogin()} />
-            {mode === "login" && (
+            {mode === "login" && selectedRole !== "personnel" && (
               <div style={{ textAlign: "right", marginTop: 6 }}>
                 <span style={{ color: roleInfo?.color || "#0E7C7B", fontSize: 12, cursor: "pointer", fontWeight: 600 }}>Code oublié ?</span>
               </div>
@@ -213,10 +239,10 @@ export default function LoginPage() {
           )}
 
           {/* Submit */}
-          <button onClick={handleLogin}
+          <button onClick={handleLogin} disabled={loading}
             onMouseEnter={() => setHovSubmit(true)} onMouseLeave={() => setHovSubmit(false)}
-            style={{ background: hovSubmit ? (roleInfo?.color ? roleInfo.color + "DD" : "#0A6060") : (roleInfo?.color || "#0E7C7B"), border: "none", borderRadius: 12, padding: "14px", color: "#fff", fontWeight: 700, fontSize: 15, cursor: "pointer", width: "100%", fontFamily: "inherit" }}>
-            {mode === "login" ? "Se connecter" : "Créer mon compte"}
+            style={{ background: loading ? "#6B7B80" : hovSubmit ? (roleInfo?.color ? roleInfo.color + "DD" : "#0A6060") : (roleInfo?.color || "#0E7C7B"), border: "none", borderRadius: 12, padding: "14px", color: "#fff", fontWeight: 700, fontSize: 15, cursor: loading ? "not-allowed" : "pointer", width: "100%", fontFamily: "inherit" }}>
+            {loading ? "Connexion en cours…" : mode === "login" ? "Se connecter" : "Créer mon compte"}
           </button>
 
           <div style={{ textAlign: "center", color: "#8AA4A8", fontSize: 13 }}>ou</div>
