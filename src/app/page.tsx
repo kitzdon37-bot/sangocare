@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
 import { useAppStore } from "@/store/appStore";
 import type { Appointment } from "@/store/appStore";
@@ -105,6 +105,45 @@ export default function SitePage() {
 
   // RDV tabs
   const [rdvTab, setRdvTab] = useState<"avenir" | "passes">("avenir");
+
+  // Scroll restoration
+  const savedScroll = useRef(0);
+  const navigateTo = useCallback((screen: SiteScreen) => {
+    if (screen !== "landing") savedScroll.current = window.scrollY;
+    setSiteScreen(screen);
+  }, []);
+  useEffect(() => {
+    if (siteScreen === "landing") {
+      const y = savedScroll.current;
+      requestAnimationFrame(() => window.scrollTo({ top: y, behavior: "instant" as ScrollBehavior }));
+    } else {
+      window.scrollTo({ top: 0, behavior: "instant" as ScrollBehavior });
+    }
+  }, [siteScreen]);
+
+  // Search suggestions
+  const [searchFocused, setSearchFocused] = useState(false);
+  const searchRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) setSearchFocused(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const suggestions = searchVal.trim().length >= 1 ? (() => {
+    const q = searchVal.toLowerCase();
+    const results: { type: "doc" | "spec"; label: string; sub: string; id?: string }[] = [];
+    SPECIALTIES.forEach(s => {
+      if (s.label.toLowerCase().includes(q)) results.push({ type: "spec", label: s.label, sub: "Spécialité" });
+    });
+    doctors.forEach(d => {
+      if (d.name.toLowerCase().includes(q) || d.specialty.toLowerCase().includes(q))
+        results.push({ type: "doc", label: d.name, sub: d.specialty + " · " + d.location, id: d.id });
+    });
+    return results.slice(0, 6);
+  })() : [];
 
   useEffect(() => {
     const h = () => setIsMobileView(window.innerWidth < 768);
@@ -322,7 +361,7 @@ export default function SitePage() {
     <div style={{ background: "#F4F7F6", minHeight: "calc(100vh - 52px)" }}>
       <div style={{ maxWidth: 960, margin: "0 auto", padding: "24px 20px" }}>
         <button
-          onClick={() => setSiteScreen("landing")}
+          onClick={() => navigateTo("landing")}
           style={{ background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 6, color: "#0E7C7B", fontWeight: 700, fontSize: 14, fontFamily: "inherit", marginBottom: 20 }}
         >
           <span className="material-symbols-rounded" style={{ fontSize: 20 }}>arrow_back</span>
@@ -592,7 +631,7 @@ export default function SitePage() {
           <div style={{ background: "#fff", borderRadius: 16, padding: "40px 24px", textAlign: "center", border: "1px solid #E2EAE8" }}>
             <span className="material-symbols-rounded" style={{ fontSize: 40, color: "#E2EAE8", display: "block", marginBottom: 12 }}>event_note</span>
             <div style={{ color: "#6B7B80", fontSize: 14, marginBottom: 16 }}>Aucun rendez-vous</div>
-            <button onClick={() => setSiteScreen("search")}
+            <button onClick={() => navigateTo("search")}
               style={{ background: "#0E7C7B", border: "none", borderRadius: 10, padding: "10px 22px", color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>
               Prendre RDV
             </button>
@@ -701,7 +740,7 @@ export default function SitePage() {
                 <div style={{ fontSize: 12, color: "#6B7B80", marginTop: 2 }}>Groupe sanguin : <strong style={{ color: "#DC2626" }}>{m.blood}</strong></div>
               </div>
               <button
-                onClick={() => setSiteScreen("search")}
+                onClick={() => navigateTo("search")}
                 style={{ background: "#0E7C7B", border: "none", borderRadius: 10, padding: "9px 16px", color: "#fff", fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" }}>
                 Prendre RDV
               </button>
@@ -823,7 +862,7 @@ export default function SitePage() {
       <div style={{ background: "#F4F7F6", minHeight: "calc(100vh - 52px)" }}>
         <div style={{ maxWidth: 1100, margin: "0 auto", padding: "0 20px" }}>
           <div style={{ padding: "18px 0 10px" }}>
-            <button onClick={() => setSiteScreen("landing")}
+            <button onClick={() => navigateTo("landing")}
               style={{ background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 6, color: "#0E7C7B", fontWeight: 700, fontSize: 14, fontFamily: "inherit" }}>
               <span className="material-symbols-rounded" style={{ fontSize: 20 }}>arrow_back</span>
               Accueil
@@ -965,15 +1004,46 @@ export default function SitePage() {
           </p>
 
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", maxWidth: 640 }}>
-            <div style={{ flex: 1, minWidth: 180, position: "relative" }}>
-              <span className="material-symbols-rounded" style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", fontSize: 18, color: "#8AA4A8" }}>search</span>
-              <input value={searchVal} onChange={e => setSearchVal(e.target.value)} placeholder="Médecin, spécialité, symptôme..." style={{ ...inp, width: "100%", paddingLeft: 38 }} />
+            <div ref={searchRef} style={{ flex: 1, minWidth: 180, position: "relative" }}>
+              <span className="material-symbols-rounded" style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", fontSize: 18, color: "#8AA4A8", zIndex: 1 }}>search</span>
+              <input
+                value={searchVal}
+                onChange={e => setSearchVal(e.target.value)}
+                onFocus={() => setSearchFocused(true)}
+                placeholder="Médecin, spécialité, symptôme..."
+                style={{ ...inp, width: "100%", paddingLeft: 38 }}
+              />
+              {/* Suggestions dropdown */}
+              {searchFocused && suggestions.length > 0 && (
+                <div style={{ position: "absolute", top: "calc(100% + 6px)", left: 0, right: 0, background: "#fff", borderRadius: 14, boxShadow: "0 8px 32px rgba(0,0,0,0.18)", border: "1px solid #E2EAE8", zIndex: 200, overflow: "hidden" }}>
+                  {suggestions.map((s, i) => (
+                    <button key={i}
+                      onMouseDown={e => {
+                        e.preventDefault();
+                        if (s.type === "doc" && s.id) { setSelectedSpecialty(""); setSpecialtyFilter(null); setSearchVal(s.label); }
+                        else { setSpecialtyFilter(s.label); setSelectedSpecialty(s.label); setSearchVal(s.label); }
+                        setSearchFocused(false);
+                        navigateTo("search");
+                      }}
+                      style={{ width: "100%", background: "transparent", border: "none", borderTop: i > 0 ? "1px solid #F4F7F6" : "none", padding: "11px 16px", cursor: "pointer", display: "flex", alignItems: "center", gap: 10, textAlign: "left", fontFamily: "inherit" }}
+                      onMouseEnter={e => (e.currentTarget.style.background = "#F4F7F6")}
+                      onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
+                    >
+                      <span className="material-symbols-rounded" style={{ fontSize: 17, color: s.type === "doc" ? "#0E7C7B" : "#7C3AED", flexShrink: 0 }}>{s.type === "doc" ? "person" : "medical_services"}</span>
+                      <div>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: "#0F1F24" }}>{s.label}</div>
+                        <div style={{ fontSize: 11, color: "#6B7B80" }}>{s.sub}</div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
             <div style={{ flex: 1, minWidth: 140, position: "relative" }}>
               <span className="material-symbols-rounded" style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", fontSize: 18, color: "#8AA4A8" }}>location_on</span>
               <input value={locationVal} onChange={e => setLocationVal(e.target.value)} placeholder="Bangui, Bambari..." style={{ ...inp, width: "100%", paddingLeft: 38 }} />
             </div>
-            <button onClick={() => setSiteScreen("search")}
+            <button onClick={() => navigateTo("search")}
               onMouseEnter={() => setHovBtn("search")} onMouseLeave={() => setHovBtn(null)}
               style={{ background: hovBtn === "search" ? "#0A6060" : "#0E7C7B", border: "none", borderRadius: 10, padding: "11px 22px", color: "#fff", fontWeight: 700, fontSize: 14, cursor: "pointer", whiteSpace: "nowrap", fontFamily: "inherit" }}>
               Rechercher
@@ -1002,7 +1072,7 @@ export default function SitePage() {
           <div style={{ display: "grid", gridTemplateColumns: isMobileView ? "repeat(4, 1fr)" : "repeat(8, 1fr)", gap: 12 }}>
             {SPECIALTIES.map(s => (
               <button key={s.label}
-                onClick={() => { setSelectedSpecialty(s.label); setSpecialtyFilter(s.label); setSiteScreen("search"); }}
+                onClick={() => { setSelectedSpecialty(s.label); setSpecialtyFilter(s.label); navigateTo("search"); }}
                 onMouseEnter={() => setHovSpec(s.label)} onMouseLeave={() => setHovSpec(null)}
                 style={{ background: "#fff", border: "1.5px solid #E2EAE8", borderRadius: 14, padding: "16px 8px", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 8, transform: hovSpec === s.label ? "translateY(-3px)" : "none", boxShadow: hovSpec === s.label ? "0 8px 24px rgba(0,0,0,0.1)" : "0 1px 4px rgba(0,0,0,0.05)", transition: "all 0.15s", fontFamily: "inherit" }}>
                 <div style={{ width: 44, height: 44, borderRadius: "50%", background: `${s.color}15`, display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -1025,7 +1095,7 @@ export default function SitePage() {
                 key={item.label}
                 onClick={() => {
                   if (item.screen) {
-                    setSiteScreen(item.screen);
+                    navigateTo(item.screen);
                   } else if ("toast" in item) {
                     showToast(item.toast);
                   }
