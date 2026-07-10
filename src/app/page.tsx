@@ -645,47 +645,98 @@ export default function SitePage() {
       <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
 
         {/* ── Calendrier ── */}
-        <div style={{ background: "#fff", borderRadius: 16, padding: "20px", border: "1px solid #E2EAE8", boxShadow: "0 2px 8px rgba(0,0,0,0.05)" }}>
-          {/* Entête navigation mois/année */}
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-            <button onClick={prevMonth} style={{ background: "#F4F7F6", border: "none", borderRadius: 8, width: 32, height: 32, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <span className="material-symbols-rounded" style={{ fontSize: 18, color: "#46565B" }}>chevron_left</span>
+        <div style={{ background: "#fff", borderRadius: 20, border: "1px solid #E2EAE8", boxShadow: "0 2px 12px rgba(0,0,0,0.06)", overflow: "hidden" }}>
+
+          {/* Header : navigation mois + année */}
+          <div style={{ background: "#0C1A1E", padding: "18px 20px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <button onClick={prevMonth} style={{ background: "rgba(255,255,255,0.1)", border: "none", borderRadius: 8, width: 36, height: 36, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <span className="material-symbols-rounded" style={{ fontSize: 20, color: "#fff" }}>chevron_left</span>
             </button>
             <div style={{ textAlign: "center" }}>
-              <div style={{ fontWeight: 800, fontSize: 16, color: "#0F1F24" }}>{MONTHS_FR[calMonth]}</div>
-              <div style={{ fontSize: 12, color: "#6B7B80", marginTop: 1 }}>{calYear}</div>
+              <div style={{ color: "#fff", fontWeight: 800, fontSize: 18, letterSpacing: "-0.01em" }}>{MONTHS_FR[calMonth]}</div>
+              <div style={{ color: "#8AA4A8", fontSize: 13, marginTop: 2, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+                <button onClick={() => setCalYear(y => y - 1)} style={{ background: "none", border: "none", color: "#8AA4A8", cursor: "pointer", padding: "0 4px", fontSize: 13 }}>‹</button>
+                <span style={{ fontWeight: 700, color: "#0E7C7B" }}>{calYear}</span>
+                <button onClick={() => setCalYear(y => y + 1)} style={{ background: "none", border: "none", color: "#8AA4A8", cursor: "pointer", padding: "0 4px", fontSize: 13 }}>›</button>
+              </div>
             </div>
-            <button onClick={nextMonth} style={{ background: "#F4F7F6", border: "none", borderRadius: 8, width: 32, height: 32, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <span className="material-symbols-rounded" style={{ fontSize: 18, color: "#46565B" }}>chevron_right</span>
+            <button onClick={nextMonth} style={{ background: "rgba(255,255,255,0.1)", border: "none", borderRadius: 8, width: 36, height: 36, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <span className="material-symbols-rounded" style={{ fontSize: 20, color: "#fff" }}>chevron_right</span>
             </button>
           </div>
-          {/* Labels jours */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 2, marginBottom: 4 }}>
-            {DAYS_FR.map(d => <div key={d} style={{ textAlign: "center", fontSize: 11, fontWeight: 700, color: "#8AA4A8", padding: "4px 0" }}>{d}</div>)}
+
+          <div style={{ padding: "16px 12px 12px" }}>
+            {/* Labels jours — Sam/Dim en rouge clair */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", marginBottom: 6 }}>
+              {DAYS_FR.map((d, i) => (
+                <div key={d} style={{ textAlign: "center", fontSize: 11, fontWeight: 700, color: i >= 5 ? "#DC2626" : "#8AA4A8", padding: "4px 0" }}>{d}</div>
+              ))}
+            </div>
+
+            {/* Grille des jours */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 3 }}>
+              {Array.from({ length: firstDow }).map((_, i) => <div key={`e${i}`} />)}
+              {Array.from({ length: daysInMonth }).map((_, i) => {
+                const day = i + 1;
+                const colIndex = (firstDow + i) % 7;
+                const isWeekend = colIndex >= 5;
+                const dateStr = `${calYear}-${String(calMonth + 1).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
+                const rdvCount = (rdvByDay[dateStr] || []).length;
+                const isSelected = calSelectedDay === dateStr;
+                const isToday = dateStr === new Date().toISOString().slice(0,10);
+                return (
+                  <button key={day}
+                    onClick={() => setCalSelectedDay(isSelected ? null : dateStr)}
+                    style={{
+                      background: isSelected ? "#0E7C7B" : isToday ? "#0E7C7B18" : "transparent",
+                      border: isSelected ? "2px solid #0E7C7B" : isToday ? "2px solid #0E7C7B" : "2px solid transparent",
+                      borderRadius: 10,
+                      padding: "8px 4px 6px",
+                      cursor: "pointer",
+                      fontFamily: "inherit",
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
+                      gap: 4,
+                      minHeight: 52,
+                      transition: "all 0.1s",
+                    }}>
+                    <span style={{
+                      fontSize: 14,
+                      fontWeight: rdvCount > 0 || isToday ? 800 : 400,
+                      color: isSelected ? "#fff" : isToday ? "#0E7C7B" : isWeekend ? "#DC2626" : "#0F1F24",
+                      lineHeight: 1,
+                    }}>{day}</span>
+                    {rdvCount > 0 && (
+                      <div style={{ display: "flex", gap: 2, flexWrap: "wrap", justifyContent: "center" }}>
+                        {Array.from({ length: Math.min(rdvCount, 3) }).map((__, j) => (
+                          <div key={j} style={{ width: 5, height: 5, borderRadius: "50%", background: isSelected ? "#fff" : "#0E7C7B" }} />
+                        ))}
+                      </div>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
           </div>
-          {/* Grille jours */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 2 }}>
-            {Array.from({ length: firstDow }).map((_, i) => <div key={`e${i}`} />)}
-            {Array.from({ length: daysInMonth }).map((_, i) => {
-              const day = i + 1;
-              const dateStr = `${calYear}-${String(calMonth + 1).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
-              const hasRdv = !!rdvByDay[dateStr];
-              const isSelected = calSelectedDay === dateStr;
-              const isToday = dateStr === new Date().toISOString().slice(0,10);
-              return (
-                <button key={day} onClick={() => setCalSelectedDay(isSelected ? null : dateStr)}
-                  style={{ background: isSelected ? "#0E7C7B" : isToday ? "#E5F2F1" : "transparent", border: isToday && !isSelected ? "1.5px solid #0E7C7B" : "1.5px solid transparent", borderRadius: 8, padding: "6px 2px", cursor: "pointer", fontFamily: "inherit", display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
-                  <span style={{ fontSize: 13, fontWeight: hasRdv || isToday ? 800 : 500, color: isSelected ? "#fff" : isToday ? "#0E7C7B" : "#0F1F24" }}>{day}</span>
-                  {hasRdv && <div style={{ width: 5, height: 5, borderRadius: "50%", background: isSelected ? "#fff" : "#0E7C7B" }} />}
-                </button>
-              );
-            })}
+
+          {/* Légende */}
+          <div style={{ borderTop: "1px solid #F4F7F6", padding: "10px 16px", display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+              <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#0E7C7B" }} />
+              <span style={{ fontSize: 11, color: "#6B7B80" }}>Rendez-vous</span>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+              <div style={{ width: 14, height: 14, borderRadius: 4, background: "#0E7C7B18", border: "2px solid #0E7C7B" }} />
+              <span style={{ fontSize: 11, color: "#6B7B80" }}>Aujourd{"'"}hui</span>
+            </div>
+            {calSelectedDay && (
+              <button onClick={() => setCalSelectedDay(null)} style={{ marginLeft: "auto", background: "none", border: "none", color: "#0E7C7B", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 4 }}>
+                <span className="material-symbols-rounded" style={{ fontSize: 14 }}>close</span>
+                Effacer sélection
+              </button>
+            )}
           </div>
-          {calSelectedDay && (
-            <button onClick={() => setCalSelectedDay(null)} style={{ marginTop: 10, background: "none", border: "none", color: "#6B7B80", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>
-              ✕ Effacer sélection
-            </button>
-          )}
         </div>
 
         {/* Tabs */}
