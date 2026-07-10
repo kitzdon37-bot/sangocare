@@ -198,6 +198,7 @@ interface AppState {
   searchQuery: string;
   selectedSpecialty: string | null;
   isMobile: boolean;
+  navHidden: boolean;
   toast: { message: string; visible: boolean };
   login: (phone: string, name?: string, role?: UserRole) => void;
   logout: () => void;
@@ -208,6 +209,7 @@ interface AppState {
   setSearchQuery: (q: string) => void;
   setSelectedSpecialty: (s: string | null) => void;
   setIsMobile: (v: boolean) => void;
+  setNavHidden: (v: boolean) => void;
   showToast: (msg: string) => void;
   addAppointment: (a: Appointment) => void;
   updateAppointmentStatut: (id: string, statut: AppointmentStatut) => void;
@@ -241,6 +243,7 @@ export const useAppStore = create<AppState>()(
       searchQuery: "",
       selectedSpecialty: null,
       isMobile: false,
+      navHidden: false,
       toast: { message: "", visible: false },
       login: (phone, name, role) => {
         const n = name || "Utilisateur";
@@ -255,6 +258,7 @@ export const useAppStore = create<AppState>()(
       setSearchQuery: (q) => set({ searchQuery: q }),
       setSelectedSpecialty: (s) => set({ selectedSpecialty: s }),
       setIsMobile: (v) => set({ isMobile: v }),
+      setNavHidden: (v) => set({ navHidden: v }),
       showToast: (msg) => {
         set({ toast: { message: msg, visible: true } });
         setTimeout(() => set({ toast: { message: "", visible: false } }), 3000);

@@ -21,7 +21,7 @@ const NET: Record<NetworkMode, { icon: string; label: string; sub: string; color
 };
 
 export default function TopNav() {
-  const { activeView, setActiveView, networkMode, setNetworkMode, userRole, userName, userInitials, logout } = useAppStore();
+  const { activeView, setActiveView, networkMode, setNetworkMode, userRole, userName, userInitials, logout, navHidden, setNavHidden } = useAppStore();
   const router = useRouter();
   const [hovBtn, setHovBtn] = useState<string | null>(null);
   const [showNetMenu, setShowNetMenu] = useState(false);
@@ -155,6 +155,21 @@ export default function TopNav() {
             </div>
           )}
         </div>
+
+        {/* Bouton masquer la barre — personnel uniquement */}
+        {userRole === "personnel" && (
+          <button
+            onClick={() => setNavHidden(true)}
+            title="Masquer la barre de navigation"
+            style={{
+              background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)",
+              borderRadius: 8, width: 34, height: 34, cursor: "pointer",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              flexShrink: 0,
+            }}>
+            <span className="material-symbols-rounded" style={{ fontSize: 17, color: "#8AA4A8" }}>keyboard_arrow_up</span>
+          </button>
+        )}
       </div>
     </header>
   );
