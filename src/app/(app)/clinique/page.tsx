@@ -24,17 +24,14 @@ const C = {
   rowHov: "#EAF5F5",
 } as const;
 
-// ─── July 2026 calendar data ──────────────────────────────────────────────────
-// July 1, 2026 is a Wednesday (index 2 in Mon-Sun)
-const JULY_START_DOW = 2; // 0=Mon, 1=Tue, 2=Wed...
-const JULY_DAYS = 31;
 const DAY_LABELS = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
+const MONTHS_FR = ["Janvier","Février","Mars","Avril","Mai","Juin","Juillet","Août","Septembre","Octobre","Novembre","Décembre"];
 
 type SidebarTab = "agenda" | "patients" | "teleconsult" | "messages" | "stats" | "attente" | "tarifs" | "equipe" | "avis" | "aide";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-function eventsForDay(events: CalendarEvent[], day: number): CalendarEvent[] {
-  const dateStr = `2026-07-${String(day).padStart(2, "0")}`;
+function eventsForDay(events: CalendarEvent[], year: number, month: number, day: number): CalendarEvent[] {
+  const dateStr = `${year}-${String(month + 1).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
   return events.filter((e) => e.date === dateStr);
 }
 
@@ -146,14 +143,22 @@ export default function CliniquePage() {
   } = useAppStore();
 
   const [sidebarTab, setSidebarTab] = useState<SidebarTab>("agenda");
-  const [selectedDay, setSelectedDay] = useState<number | null>(3);
+  const [calMonth, setCalMonth] = useState(new Date().getMonth());
+  const [calYear, setCalYear] = useState(new Date().getFullYear());
+  const [selectedDay, setSelectedDay] = useState<number | null>(new Date().getDate());
   const [hovDay, setHovDay] = useState<number | null>(null);
   const [hovRow, setHovRow] = useState<string | null>(null);
   const [hovBtn, setHovBtn] = useState<string | null>(null);
   const [patientSearch, setPatientSearch] = useState("");
+
+  const todayDate = new Date();
+  const todayStr = `${todayDate.getFullYear()}-${String(todayDate.getMonth()+1).padStart(2,"0")}-${String(todayDate.getDate()).padStart(2,"0")}`;
+  const tomorrowDate = new Date(todayDate); tomorrowDate.setDate(tomorrowDate.getDate() + 1);
+  const tomorrowStr = `${tomorrowDate.getFullYear()}-${String(tomorrowDate.getMonth()+1).padStart(2,"0")}-${String(tomorrowDate.getDate()).padStart(2,"0")}`;
+
   const [newConsultForm, setNewConsultForm] = useState({
     patientName: "",
-    date: "2026-07-03",
+    date: todayStr,
     heure: "09:00",
     duree: 30,
     motif: "",
@@ -161,8 +166,8 @@ export default function CliniquePage() {
   });
 
   // KPIs
-  const today = "2026-07-03";
-  const tomorrow = "2026-07-04";
+  const today = todayStr;
+  const tomorrow = tomorrowStr;
   const todayEvents = calendarEvents.filter((e) => e.date === today);
   const kpiTotal = todayEvents.length;
   const kpiConfirmed = todayEvents.filter((e) => e.statut === "Confirmé").length;
@@ -185,10 +190,17 @@ export default function CliniquePage() {
   ];
 
   // Selected day events
-  const selectedDayEvents = selectedDay ? eventsForDay(calendarEvents, selectedDay) : [];
+  const selectedDayEvents = selectedDay ? eventsForDay(calendarEvents, calYear, calMonth, selectedDay) : [];
   const selectedDateLabel = selectedDay
-    ? new Date(`2026-07-${String(selectedDay).padStart(2, "0")}T12:00:00`).toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric" })
+    ? new Date(`${calYear}-${String(calMonth+1).padStart(2,"0")}-${String(selectedDay).padStart(2,"0")}T12:00:00`).toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric" })
     : null;
+
+  // Calendar helpers
+  const daysInCalMonth = new Date(calYear, calMonth + 1, 0).getDate();
+  const firstDowCalMonth = (new Date(calYear, calMonth, 1).getDay() + 6) % 7;
+  const goToPrevMonth = () => { if (calMonth === 0) { setCalMonth(11); setCalYear(y => y - 1); } else setCalMonth(m => m - 1); setSelectedDay(null); };
+  const goToNextMonth = () => { if (calMonth === 11) { setCalMonth(0); setCalYear(y => y + 1); } else setCalMonth(m => m + 1); setSelectedDay(null); };
+  const goToToday = () => { setCalMonth(todayDate.getMonth()); setCalYear(todayDate.getFullYear()); setSelectedDay(todayDate.getDate()); };
 
   // Patients filtered
   const filteredPatients = patients.filter((p) =>
@@ -316,14 +328,14 @@ export default function CliniquePage() {
                       ))}
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <button style={{ background: "none", border: `1px solid ${C.border}`, borderRadius: 6, padding: "5px 10px", cursor: "pointer", color: C.muted, fontSize: 14 }}>
+                      <button onClick={goToPrevMonth} style={{ background: "none", border: `1px solid ${C.border}`, borderRadius: 6, padding: "5px 10px", cursor: "pointer", color: C.muted, fontSize: 14 }}>
                         <span className="material-symbols-rounded" style={{ fontSize: 16 }}>chevron_left</span>
                       </button>
-                      <span style={{ fontSize: 15, fontWeight: 700, color: C.text }}>Juillet 2026</span>
-                      <button style={{ background: "none", border: `1px solid ${C.border}`, borderRadius: 6, padding: "5px 10px", cursor: "pointer", color: C.muted, fontSize: 14 }}>
+                      <span style={{ fontSize: 15, fontWeight: 700, color: C.text, minWidth: 120, textAlign: "center" }}>{MONTHS_FR[calMonth]} {calYear}</span>
+                      <button onClick={goToNextMonth} style={{ background: "none", border: `1px solid ${C.border}`, borderRadius: 6, padding: "5px 10px", cursor: "pointer", color: C.muted, fontSize: 14 }}>
                         <span className="material-symbols-rounded" style={{ fontSize: 16 }}>chevron_right</span>
                       </button>
-                      <button onClick={() => setSelectedDay(3)} style={{ background: C.content, border: `1px solid ${C.border}`, borderRadius: 6, padding: "5px 12px", cursor: "pointer", fontSize: 12, fontWeight: 600, color: C.text, fontFamily: "inherit" }}>Aujourd'hui</button>
+                      <button onClick={goToToday} style={{ background: C.content, border: `1px solid ${C.border}`, borderRadius: 6, padding: "5px 12px", cursor: "pointer", fontSize: 12, fontWeight: 600, color: C.text, fontFamily: "inherit" }}>Aujourd{"'"}hui</button>
                     </div>
                   </div>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
@@ -356,17 +368,18 @@ export default function CliniquePage() {
                   ))}
 
                   {/* Cellules vides avant le 1er */}
-                  {Array.from({ length: JULY_START_DOW }).map((_, i) => (
+                  {Array.from({ length: firstDowCalMonth }).map((_, i) => (
                     <div key={`empty-${i}`} />
                   ))}
 
                   {/* Jours */}
-                  {Array.from({ length: JULY_DAYS }, (_, i) => i + 1).map((day) => {
-                    const dayEvents = eventsForDay(calendarEvents, day);
+                  {Array.from({ length: daysInCalMonth }, (_, i) => i + 1).map((day) => {
+                    const dayEvents = eventsForDay(calendarEvents, calYear, calMonth, day);
                     const hasEvents = dayEvents.length > 0;
                     const isSelected = selectedDay === day;
                     const isHov = hovDay === day;
-                    const isToday = day === 3;
+                    const dayStr = `${calYear}-${String(calMonth+1).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
+                    const isToday = dayStr === todayStr;
 
                     return (
                       <div
